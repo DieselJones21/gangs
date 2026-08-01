@@ -54,8 +54,9 @@ local function drawStripedWall(ax, ay, az1, az2, bx, by, bz1, bz2)
     if length < 0.05 then return end
 
     local stripe = Config.WarWallStripeWidth or 1.35
-    local steps = math.max(2, math.ceil(length / (stripe * 0.45)))
-    local heightSteps = math.max(4, math.ceil(math.abs(az2 - az1) / (stripe * 0.55)))
+    -- Keep segment counts bounded for FPS while preserving the hazard look
+    local steps = math.max(3, math.min(28, math.ceil(length / stripe)))
+    local heightSteps = math.max(6, math.min(18, math.ceil(math.abs(az2 - az1) / (stripe * 0.85))))
 
     local redR, redG, redB = wallColor('red')
     local blueR, blueG, blueB = wallColor('blue')

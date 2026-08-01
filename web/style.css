@@ -481,7 +481,7 @@ button:disabled {
   height: 100%;
   width: var(--fill, 0%);
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--team-color, #e11d2e), color-mix(in srgb, var(--team-color, #e11d2e) 55%, white));
+  background: linear-gradient(90deg, var(--team-color, #e11d2e), rgba(255,255,255,0.55));
   transition: width 0.25s ease;
 }
 
