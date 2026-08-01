@@ -250,6 +250,7 @@ function Gangs.BuildPlayerPayload(source)
             name = org.name,
             label = org.label,
             color = org.color,
+            logo = org.logo,
             owner = org.owner,
             power = org.power,
             bank = org.bank,
@@ -290,6 +291,8 @@ function Gangs.BuildPlayerPayload(source)
             defenderLabel = defenderOrg and defenderOrg.label or (war.defender or 'Unowned'),
             attackerColor = attackerOrg and attackerOrg.color or '#EF4444',
             defenderColor = defenderOrg and defenderOrg.color or '#3B82F6',
+            attackerLogo = attackerOrg and attackerOrg.logo or nil,
+            defenderLogo = defenderOrg and defenderOrg.logo or nil,
             attackerScore = war.attackerScore,
             defenderScore = war.defenderScore,
             startedAt = war.startedAt,
@@ -344,9 +347,16 @@ function Gangs.BuildPlayerPayload(source)
     }
 end
 
+local function ensureSchema()
+    pcall(function()
+        MySQL.query.await('ALTER TABLE gangs_organizations ADD COLUMN logo VARCHAR(512) DEFAULT NULL')
+    end)
+end
+
 AddEventHandler('onResourceStart', function(res)
     if res ~= RESOURCE then return end
     Wait(500)
+    ensureSchema()
     loadOrganizations()
     loadZones()
     loadBounties()

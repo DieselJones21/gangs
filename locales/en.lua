@@ -16,6 +16,7 @@ Locales.en = {
     left_org = 'You left your organization.',
     kicked = '%s was kicked from the organization.',
     role_updated = 'Member role updated.',
+    logo_updated = 'Organization logo updated.',
     war_started = 'War started on %s!',
     war_ended = 'War ended on %s. Winner: %s',
     war_cooldown_org = 'Your organization is on war cooldown.',

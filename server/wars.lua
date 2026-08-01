@@ -4,6 +4,7 @@ local function orgDisplay(name)
             name = name,
             label = name or 'Unowned',
             color = '#3B82F6',
+            logo = nil,
         }
     end
     local org = Gangs.Orgs[name]
@@ -11,6 +12,7 @@ local function orgDisplay(name)
         name = org.name,
         label = org.label,
         color = org.color or '#EF4444',
+        logo = org.logo,
     }
 end
 
@@ -20,6 +22,10 @@ function Gangs.GetClientWars()
         local zone = Gangs.Zones[key]
         local attacker = orgDisplay(war.attacker)
         local defender = orgDisplay(war.defender)
+        local leading = attacker
+        if (war.defenderScore or 0) > (war.attackerScore or 0) then
+            leading = defender
+        end
         payload[key] = {
             zoneKey = key,
             zoneId = zone and zone.id or nil,
@@ -27,9 +33,14 @@ function Gangs.GetClientWars()
             attacker = attacker.name,
             attackerLabel = attacker.label,
             attackerColor = attacker.color,
+            attackerLogo = attacker.logo,
             defender = defender.name,
             defenderLabel = defender.label,
             defenderColor = defender.color,
+            defenderLogo = defender.logo,
+            leadingColor = leading.color,
+            leadingLogo = leading.logo,
+            leadingLabel = leading.label,
             attackerScore = war.attackerScore,
             defenderScore = war.defenderScore,
             startedAt = war.startedAt,

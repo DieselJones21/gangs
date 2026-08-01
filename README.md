@@ -9,7 +9,9 @@ Original FiveM territory / organization resource with Core Gangs–style gamepla
 - Zone storages, NPC guards, continental shop
 - Freecam PolyZone editor for admins (`/zoneeditor`) — fly into the sky and click ground points
 - Criminal Tablet NUI (`F9` / `/criminal`) with black/red/blue theme
-- Zone war HUD widget + striped war walls
+- Org logos (image URL) shown on war walls
+- In-zone war HUD with gang names + colored score bars (no timer)
+- Checkerboard war walls tinted to the leading org color
 
 This is **not** a copy of C8RE Core Gangs code. It is an original implementation inspired by the same feature set.
 

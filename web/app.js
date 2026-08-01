@@ -169,10 +169,28 @@ function renderOrg() {
     </div>
   `).join('');
 
+  const canLogo = perms.canEditLogo || perms.canManageZones;
   panel.innerHTML = `
     <div class="panel" style="margin-bottom:12px;">
-      <h3 style="margin:0 0 6px;font-family:Syne,sans-serif;color:${esc(org.color)}">${esc(org.label)}</h3>
-      <p class="muted">Bank: ${esc(org.bank)} · Members: ${esc((org.members || []).length)} · Power: ${esc(org.power)}</p>
+      <div class="org-head">
+        <div class="org-logo-preview" style="background:${esc(org.color)}">
+          ${org.logo ? `<img src="${esc(org.logo)}" alt="logo" />` : `<span>${esc((org.label || '?').slice(0, 2).toUpperCase())}</span>`}
+        </div>
+        <div>
+          <h3 style="margin:0 0 6px;font-family:Orbitron,sans-serif;color:${esc(org.color)}">${esc(org.label)}</h3>
+          <p class="muted">Bank: ${esc(org.bank)} · Members: ${esc((org.members || []).length)} · Power: ${esc(org.power)}</p>
+        </div>
+      </div>
+      ${canLogo ? `
+      <div class="form-panel" style="margin-top:14px;">
+        <label>Organization Logo Image URL</label>
+        <input id="orgLogoUrl" type="url" placeholder="https://i.imgur.com/yourlogo.png" value="${esc(org.logo || '')}" />
+        <p class="muted">Shown on war walls for zones your crew is leading.</p>
+        <div class="actions" style="justify-content:flex-start;">
+          <button class="soft" id="saveLogoBtn">Save Logo</button>
+          <button class="ghost" id="clearLogoBtn">Clear</button>
+        </div>
+      </div>` : ''}
       <div class="actions" style="margin-top:12px;justify-content:flex-start;">
         ${perms.canInvite ? `<button class="soft" id="inviteBtn">Invite Nearby</button>` : ''}
         ${perms.canManageBank ? `<button class="soft" id="withdrawBtn">Withdraw 100</button>` : ''}
@@ -181,6 +199,22 @@ function renderOrg() {
     </div>
     <div class="list">${members || '<div class="empty">No members</div>'}</div>
   `;
+
+  const saveLogoBtn = document.getElementById('saveLogoBtn');
+  if (saveLogoBtn) {
+    saveLogoBtn.onclick = async () => {
+      const logo = document.getElementById('orgLogoUrl').value.trim();
+      const result = await runAction(() => nui('setOrgLogo', { logo }));
+      if (applyResult(result, 'Failed to update logo')) showToast('Logo saved', 'success');
+    };
+  }
+  const clearLogoBtn = document.getElementById('clearLogoBtn');
+  if (clearLogoBtn) {
+    clearLogoBtn.onclick = async () => {
+      const result = await runAction(() => nui('setOrgLogo', { logo: '' }));
+      if (applyResult(result, 'Failed to clear logo')) showToast('Logo cleared', 'success');
+    };
+  }
 
   const leaveBtn = document.getElementById('leaveBtn');
   if (leaveBtn) {
@@ -317,11 +351,15 @@ function zoneDisplayId(war) {
   return `#${Math.abs(hash % 9000) + 1000}`;
 }
 
-function renderWarHud(wars = [], serverTime) {
-  if (!warHudEl) return;
-  if (typeof serverTime === 'number') {
-    clockOffset = serverTime - Math.floor(Date.now() / 1000);
+function teamLogoHtml(label, color, logo) {
+  if (logo) {
+    return `<div class="war-logo war-logo-img" style="--team-color:${esc(color)}"><img src="${esc(logo)}" alt="" /></div>`;
   }
+  return `<div class="war-logo" style="--team-color:${esc(color)}">${esc(initials(label))}</div>`;
+}
+
+function renderWarHud(wars = []) {
+  if (!warHudEl) return;
 
   if (!wars.length) {
     warHudEl.classList.add('hidden');
@@ -329,38 +367,22 @@ function renderWarHud(wars = [], serverTime) {
     return;
   }
 
-  const now = Math.floor(Date.now() / 1000) + clockOffset;
   warHudEl.classList.remove('hidden');
   warHudEl.innerHTML = wars.map((war) => {
-    const duration = Math.max(1, Number(war.duration) || 600);
-    const remaining = Math.max(0, Number(war.endsAt || 0) - now);
-    const progress = Math.max(0, Math.min(100, ((duration - remaining) / duration) * 100));
-    const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
-    const secs = String(remaining % 60).padStart(2, '0');
     const atk = Number(war.attackerScore || 0);
     const def = Number(war.defenderScore || 0);
     const total = Math.max(1, atk + def);
     const atkFill = (atk / total) * 100;
     const defFill = (def / total) * 100;
-    const leadingColor = atk >= def ? (war.attackerColor || '#e11d2e') : (war.defenderColor || '#2563eb');
 
     return `
-      <article class="war-card">
-        <div class="war-top">
-          <div class="war-ring" style="--ring-progress:${progress.toFixed(1)}%; --ring-color:${esc(leadingColor)}">
-            <span>WAR</span>
-          </div>
-          <div class="war-meta">
-            <h3>ZONE WAR</h3>
-            <strong>${esc(zoneDisplayId(war))}</strong>
-          </div>
-          <div class="war-timer">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a11 11 0 1 0 11 11A11.013 11.013 0 0 0 12 1Zm1 11.59V7h-2v6.41l4.29 4.3 1.42-1.42Z"/></svg>
-            ${mins}:${secs}
-          </div>
+      <article class="war-card war-card-simple">
+        <div class="war-simple-head">
+          <span>ZONE CONTROL</span>
+          <strong>${esc(war.zoneTitle || zoneDisplayId(war))}</strong>
         </div>
         <div class="war-team" style="--team-color:${esc(war.attackerColor || '#e11d2e')}">
-          <div class="war-logo">${esc(initials(war.attackerLabel))}</div>
+          ${teamLogoHtml(war.attackerLabel, war.attackerColor || '#e11d2e', war.attackerLogo)}
           <div class="war-team-copy">
             <strong>${esc(war.attackerLabel || 'Attacker')}</strong>
             <div class="war-bar"><i style="--fill:${atkFill.toFixed(1)}%"></i></div>
@@ -368,7 +390,7 @@ function renderWarHud(wars = [], serverTime) {
           <div class="war-score">${esc(formatScore(atk))}</div>
         </div>
         <div class="war-team" style="--team-color:${esc(war.defenderColor || '#2563eb')}">
-          <div class="war-logo">${esc(initials(war.defenderLabel))}</div>
+          ${teamLogoHtml(war.defenderLabel, war.defenderColor || '#2563eb', war.defenderLogo)}
           <div class="war-team-copy">
             <strong>${esc(war.defenderLabel || 'Unowned')}</strong>
             <div class="war-bar"><i style="--fill:${defFill.toFixed(1)}%"></i></div>
@@ -452,7 +474,7 @@ window.addEventListener('message', (event) => {
     app.classList.remove('hidden');
     renderAll();
   } else if (msg.action === 'warHud') {
-    renderWarHud(msg.wars || [], msg.serverTime);
+    renderWarHud(msg.wars || []);
   }
 });
 
