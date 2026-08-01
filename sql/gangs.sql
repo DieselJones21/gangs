@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS `gangs_organizations` (
     `name` VARCHAR(64) NOT NULL,
     `label` VARCHAR(128) NOT NULL,
     `color` VARCHAR(16) NOT NULL DEFAULT '#DE2A21',
+    `logo` VARCHAR(512) DEFAULT NULL,
     `owner` VARCHAR(64) NOT NULL,
     `power` INT NOT NULL DEFAULT 0,
     `bank` INT NOT NULL DEFAULT 0,

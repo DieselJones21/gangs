@@ -5,6 +5,7 @@ local props = {}
 local speed = 1.0
 local startCoords = nil
 local startHeading = 0.0
+local dialogOpen = false
 local refreshHelp
 
 local CONTROLS = {
@@ -182,6 +183,8 @@ local function finishZone()
     end
     table.sort(templates, function(a, b) return a.label < b.label end)
 
+    dialogOpen = true
+    lib.hideTextUI()
     local input = lib.inputDialog('Create PolyZone', {
         { type = 'input', label = 'Zone Key', required = true, placeholder = 'grove_house' },
         { type = 'input', label = 'Title', required = true, placeholder = 'Grove Street' },
@@ -222,6 +225,8 @@ local function finishZone()
             max = 200,
         },
     })
+    dialogOpen = false
+    if editing then refreshHelp() end
 
     if not input then return end
 
@@ -379,37 +384,40 @@ RegisterNetEvent('gangs:client:openZoneEditor', function()
     CreateThread(function()
         while editing do
             Wait(0)
-            updateFreecam()
-            drawEditorPoly()
+            if dialogOpen then
+                drawEditorPoly()
+            else
+                updateFreecam()
+                drawEditorPoly()
 
-            local addPressed = IsDisabledControlJustPressed(0, CONTROLS.addPoint)
-                or IsDisabledControlJustPressed(0, CONTROLS.addPointAlt)
-            if addPressed then
-                local hit = raycastFromCam()
-                if hit then
-                    -- snap slightly to ground
-                    local found, groundZ = GetGroundZFor_3dCoord(hit.x, hit.y, hit.z + 50.0, false)
-                    local coords = vector3(hit.x, hit.y, found and groundZ or hit.z)
-                    points[#points + 1] = coords
-                    addPointMarker(coords)
-                    refreshHelp()
-                    Bridge.Notify(('Poly point %s added'):format(#points), 'inform')
-                else
-                    Bridge.Notify('Aim at the ground to place a point', 'error')
+                local addPressed = IsDisabledControlJustPressed(0, CONTROLS.addPoint)
+                    or IsDisabledControlJustPressed(0, CONTROLS.addPointAlt)
+                if addPressed then
+                    local hit = raycastFromCam()
+                    if hit then
+                        local found, groundZ = GetGroundZFor_3dCoord(hit.x, hit.y, hit.z + 50.0, false)
+                        local coords = vector3(hit.x, hit.y, found and groundZ or hit.z)
+                        points[#points + 1] = coords
+                        addPointMarker(coords)
+                        refreshHelp()
+                        Bridge.Notify(('Poly point %s added'):format(#points), 'inform')
+                    else
+                        Bridge.Notify('Aim at the ground to place a point', 'error')
+                    end
+                elseif IsDisabledControlJustPressed(0, CONTROLS.finish) then
+                    finishZone()
+                elseif IsDisabledControlJustPressed(0, CONTROLS.undo) then
+                    if #points > 0 then
+                        points[#points] = nil
+                        local obj = props[#props]
+                        if obj and DoesEntityExist(obj) then DeleteEntity(obj) end
+                        props[#props] = nil
+                        refreshHelp()
+                    end
+                elseif IsDisabledControlJustPressed(0, CONTROLS.cancel)
+                    or IsDisabledControlJustPressed(0, CONTROLS.cancelAlt) then
+                    stopEditor()
                 end
-            elseif IsDisabledControlJustPressed(0, CONTROLS.finish) then
-                finishZone()
-            elseif IsDisabledControlJustPressed(0, CONTROLS.undo) then
-                if #points > 0 then
-                    points[#points] = nil
-                    local obj = props[#props]
-                    if obj and DoesEntityExist(obj) then DeleteEntity(obj) end
-                    props[#props] = nil
-                    refreshHelp()
-                end
-            elseif IsDisabledControlJustPressed(0, CONTROLS.cancel)
-                or IsDisabledControlJustPressed(0, CONTROLS.cancelAlt) then
-                stopEditor()
             end
         end
     end)

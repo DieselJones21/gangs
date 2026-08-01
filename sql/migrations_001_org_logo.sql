@@ -1,0 +1,2 @@
+ALTER TABLE `gangs_organizations`
+    ADD COLUMN IF NOT EXISTS `logo` VARCHAR(512) DEFAULT NULL;

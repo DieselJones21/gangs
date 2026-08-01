@@ -22,45 +22,41 @@ end
 
 local function hexToRgb(hex)
     hex = tostring(hex or ''):gsub('#', '')
-    if #hex < 6 then return 150, 150, 150 end
-    return tonumber(hex:sub(1, 2), 16) or 150,
-        tonumber(hex:sub(3, 4), 16) or 150,
-        tonumber(hex:sub(5, 6), 16) or 150
+    if #hex < 6 then return 37, 99, 235 end
+    return tonumber(hex:sub(1, 2), 16) or 37,
+        tonumber(hex:sub(3, 4), 16) or 99,
+        tonumber(hex:sub(5, 6), 16) or 235
 end
 
-local function wallColor(name)
-    local c = Config.WarWallColors and Config.WarWallColors[name]
-    if not c then
-        if name == 'red' then return 210, 24, 42 end
-        if name == 'blue' then return 28, 92, 220 end
-        return 8, 8, 10
-    end
-    return c[1] or 8, c[2] or 8, c[3] or 10
+local function shade(r, g, b, factor)
+    return math.floor(math.max(0, math.min(255, r * factor))),
+        math.floor(math.max(0, math.min(255, g * factor))),
+        math.floor(math.max(0, math.min(255, b * factor)))
 end
 
-local function drawTexturedQuad(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, r, g, b, a)
-    -- two triangles: A-B-C and A-C-D
+local function drawQuad(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, r, g, b, a)
     DrawPoly(ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a)
     DrawPoly(ax, ay, az, cx, cy, cz, dx, dy, dz, r, g, b, a)
-    -- reverse winding so both sides are visible
     DrawPoly(ax, ay, az, cx, cy, cz, bx, by, bz, r, g, b, a)
     DrawPoly(ax, ay, az, dx, dy, dz, cx, cy, cz, r, g, b, a)
 end
 
-local function drawStripedWall(ax, ay, az1, az2, bx, by, bz1, bz2)
+-- Translucent checkerboard wall tinted to the leading org color
+local function drawOrgCheckerWall(ax, ay, az1, az2, bx, by, bz1, bz2, hex, logoUrl)
     local dx = bx - ax
     local dy = by - ay
     local length = math.sqrt(dx * dx + dy * dy)
     if length < 0.05 then return end
 
-    local stripe = Config.WarWallStripeWidth or 1.35
-    -- Keep segment counts bounded for FPS while preserving the hazard look
-    local steps = math.max(3, math.min(28, math.ceil(length / stripe)))
-    local heightSteps = math.max(6, math.min(18, math.ceil(math.abs(az2 - az1) / (stripe * 0.85))))
+    local cell = Config.WarWallCellSize or 1.6
+    local steps = math.max(2, math.min(24, math.ceil(length / cell)))
+    local heightSteps = math.max(4, math.min(14, math.ceil(math.abs(az2 - az1) / cell)))
+    local alpha = Config.WarWallAlpha or 120
 
-    local redR, redG, redB = wallColor('red')
-    local blueR, blueG, blueB = wallColor('blue')
-    local blackR, blackG, blackB = wallColor('black')
+    local baseR, baseG, baseB = hexToRgb(hex)
+    local darkR, darkG, darkB = shade(baseR, baseG, baseB, 0.18)
+    local midR, midG, midB = shade(baseR, baseG, baseB, 0.72)
+    local lightR, lightG, lightB = math.min(255, baseR + 40), math.min(255, baseG + 40), math.min(255, baseB + 40)
 
     for i = 0, steps - 1 do
         local t0 = i / steps
@@ -76,33 +72,26 @@ local function drawStripedWall(ax, ay, az1, az2, bx, by, bz1, bz2)
             local z0 = az1 + (az2 - az1) * v0
             local z1 = az1 + (az2 - az1) * v1
 
-            -- Diagonal hazard bands across the wall face
-            local band = math.floor((i + j) / 1)
-            local tone = band % 3
+            local tone = (i + j) % 3
             local r, g, b, a
             if tone == 0 then
-                r, g, b, a = redR, redG, redB, 145
+                r, g, b, a = darkR, darkG, darkB, math.floor(alpha * 1.15)
             elseif tone == 1 then
-                r, g, b, a = blackR, blackG, blackB, 170
+                r, g, b, a = midR, midG, midB, alpha
             else
-                r, g, b, a = blueR, blueG, blueB, 140
+                r, g, b, a = lightR, lightG, lightB, math.floor(alpha * 0.95)
             end
 
-            drawTexturedQuad(
-                x0, y0, z0,
-                x1, y1, z0,
-                x1, y1, z1,
-                x0, y0, z1,
-                r, g, b, a
-            )
+            drawQuad(x0, y0, z0, x1, y1, z0, x1, y1, z1, x0, y0, z1, r, g, b, a)
         end
     end
 
-    -- Bright edge lines for silhouette
-    DrawLine(ax, ay, az1, bx, by, bz1, redR, redG, redB, 220)
-    DrawLine(ax, ay, az2, bx, by, bz2, blueR, blueG, blueB, 200)
-    DrawLine(ax, ay, az1, ax, ay, az2, 255, 255, 255, 70)
-    DrawLine(bx, by, bz1, bx, by, bz2, 255, 255, 255, 70)
+    DrawLine(ax, ay, az1, bx, by, bz1, baseR, baseG, baseB, 200)
+    DrawLine(ax, ay, az2, bx, by, bz2, baseR, baseG, baseB, 160)
+
+    if logoUrl and length >= (Config.WarWallLogoSize or 2.8) then
+        Gangs.DrawLogoOnWall(logoUrl, ax, ay, az1, bx, by, az2, Config.WarWallLogoSize or 2.8)
+    end
 end
 
 local function setupZoneInteractions()
@@ -189,8 +178,7 @@ CreateThread(function()
             Gangs.InsideZone = found
             if found and Gangs.Zones[found] then
                 local z = Gangs.Zones[found]
-                local owner = z.owner or 'Unowned'
-                Bridge.Notify(('%s [%s] — %s'):format(z.title, z.type, owner), 'inform')
+                Bridge.Notify(('%s [%s] — %s'):format(z.title, z.type, z.owner or 'Unowned'), 'inform')
             end
             SendNUIMessage({
                 action = 'zoneChanged',
@@ -199,25 +187,26 @@ CreateThread(function()
                     title = Gangs.Zones[found].title,
                     owner = Gangs.Zones[found].owner,
                     type = Gangs.Zones[found].type,
+                    inWar = Gangs.Wars[found] ~= nil,
                 } or nil,
             })
         end
     end
 end)
 
--- Zone outlines + striped war walls
 CreateThread(function()
     while true do
         local sleep = 1000
         local ped = PlayerPedId()
         local coords = GetEntityCoords(ped)
-        local wallHeight = Config.WarWallHeight or 18.0
+        local wallHeight = Config.WarWallHeight or 16.0
 
         for key, zone in pairs(Gangs.Zones) do
             local center = zone.center
             if center then
                 local dist = #(coords - vec3(center.x, center.y, center.z))
-                local inWar = Gangs.Wars[key] ~= nil
+                local war = Gangs.Wars[key]
+                local inWar = war ~= nil
                 local drawDist = inWar and (Config.DistanceToDisplayWall or 260.0) or 80.0
 
                 if dist < drawDist then
@@ -227,10 +216,21 @@ CreateThread(function()
                     local z2 = inWar and (z1 + wallHeight) or (zone.maxZ or (center.z + 8.0))
 
                     if inWar and Config.DisplayWarWall then
+                        local wallColor = war.leadingColor or war.attackerColor or zone.color or '#EF4444'
+                        local logo = war.leadingLogo or war.attackerLogo
+                        -- Prefer owner/defender logo if they are currently leading
+                        if (war.defenderScore or 0) > (war.attackerScore or 0) then
+                            wallColor = war.defenderColor or wallColor
+                            logo = war.defenderLogo or logo
+                        else
+                            wallColor = war.attackerColor or wallColor
+                            logo = war.attackerLogo or logo
+                        end
+
                         for i = 1, #points do
                             local a = points[i]
                             local b = points[i + 1] or points[1]
-                            drawStripedWall(a.x, a.y, z1, z2, b.x, b.y, z1, z2)
+                            drawOrgCheckerWall(a.x, a.y, z1, z2, b.x, b.y, z1, z2, wallColor, logo)
                         end
                     else
                         local r, g, b = hexToRgb(zone.color or '#3B82F6')

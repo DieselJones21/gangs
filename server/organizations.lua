@@ -82,6 +82,7 @@ function Gangs.CreateOrganization(source, label, color)
         name = name,
         label = label,
         color = color,
+        logo = nil,
         owner = identifier,
         power = 0,
         bank = 0,
@@ -289,6 +290,41 @@ function Gangs.KickMember(source, targetIdentifier)
     return true
 end
 
+function Gangs.SetOrgLogo(source, logoUrl)
+    local member = Gangs.GetMember(source)
+    if not member then return false, Gangs.Locale('not_in_org') end
+    if not Gangs.MemberHasPermission(member, 'canEditLogo') and not Gangs.MemberHasPermission(member, 'canManageZones') then
+        return false, Gangs.Locale('no_permission')
+    end
+
+    local org = Gangs.GetOrgById(member.org_id)
+    if not org then return false, Gangs.Locale('not_in_org') end
+
+    logoUrl = tostring(logoUrl or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    if logoUrl == '' then
+        org.logo = nil
+        MySQL.update.await('UPDATE gangs_organizations SET logo = NULL WHERE id = ?', { org.id })
+        Bridge.Notify(source, 'Organization logo cleared', 'success')
+        return true
+    end
+
+    local maxLen = Config.MaxOrgLogoLength or 512
+    if #logoUrl > maxLen then
+        return false, ('Logo URL too long (max %s)'):format(maxLen)
+    end
+
+    local lower = logoUrl:lower()
+    if not (lower:find('^https://') or lower:find('^http://')) then
+        return false, 'Logo must be an http/https image link'
+    end
+
+    org.logo = logoUrl
+    MySQL.update.await('UPDATE gangs_organizations SET logo = ? WHERE id = ?', { logoUrl, org.id })
+    Bridge.Notify(source, 'Organization logo updated', 'success')
+    TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
+    return true
+end
+
 function Gangs.SetMemberRole(source, targetIdentifier, roleId)
     local member = Gangs.GetMember(source)
     if not member then return false, Gangs.Locale('not_in_org') end
@@ -308,6 +344,11 @@ function Gangs.SetMemberRole(source, targetIdentifier, roleId)
     Bridge.Notify(source, Gangs.Locale('role_updated'), 'success')
     return true
 end
+
+lib.callback.register('gangs:setOrgLogo', function(source, logoUrl)
+    local ok, err = Gangs.SetOrgLogo(source, logoUrl)
+    return { success = ok, error = not ok and err or nil, data = ok and Gangs.BuildPlayerPayload(source) or nil }
+end)
 
 lib.callback.register('gangs:createOrganization', function(source, label, color)
     local ok, result = Gangs.CreateOrganization(source, label, color)

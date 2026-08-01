@@ -40,6 +40,13 @@ RegisterNUICallback('createOrg', function(data, cb)
     end)
 end)
 
+RegisterNUICallback('setOrgLogo', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:setOrgLogo', data and data.logo)
+            or { success = false, error = 'Failed to update logo' }
+    end)
+end)
+
 RegisterNUICallback('leaveOrg', function(_, cb)
     nuiAsync(cb, function()
         return awaitCallback('gangs:leaveOrganization') or { success = false, error = 'Failed to leave' }

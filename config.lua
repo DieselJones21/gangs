@@ -54,6 +54,7 @@ Config.DefaultRoles = {
             canPlaceBounty = true,
             canManageBank = true,
             canAccessStorage = true,
+            canEditLogo = true,
         },
     },
     {
@@ -68,6 +69,7 @@ Config.DefaultRoles = {
             canPlaceBounty = true,
             canManageBank = false,
             canAccessStorage = true,
+            canEditLogo = true,
         },
     },
     {
@@ -82,6 +84,7 @@ Config.DefaultRoles = {
             canPlaceBounty = false,
             canManageBank = false,
             canAccessStorage = true,
+            canEditLogo = false,
         },
     },
 }
@@ -120,7 +123,7 @@ Config.BountyPriceSetOnContinentalKill = 200
 Config.BaseZoneWarTime = 10 -- minutes
 Config.PriceToStartWar = 0
 Config.OwnedZoneAdvantage = 500
-Config.WarScoreIncrease = 5 -- points/sec/player
+Config.WarScoreIncrease = 20 -- points/sec/player in zone
 Config.OrganizationCooldown = 5 -- minutes
 Config.ZoneCooldown = 10 -- minutes
 Config.CurrencyAward = 200
@@ -143,13 +146,12 @@ Config.TimeWhenWarCanStart = {
 Config.DisplayWarWall = true
 Config.DisplayWallWarForEveryone = true
 Config.DistanceToDisplayWall = 260.0
-Config.WarWallHeight = 18.0
-Config.WarWallStripeWidth = 1.35
-Config.WarWallColors = {
-    red = { 210, 24, 42 },
-    blue = { 28, 92, 220 },
-    black = { 8, 8, 10 },
-}
+Config.WarWallHeight = 16.0
+Config.WarWallCellSize = 1.6 -- checkerboard square size
+Config.WarWallAlpha = 120
+Config.WarWallLogoSize = 2.8 -- meters
+Config.WarHudOnlyInsideZone = true -- only show score bars while inside a war zone
+Config.MaxOrgLogoLength = 512
 
 Config.ZoneTypeTemplates = {
     weed_generation = {
