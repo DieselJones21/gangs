@@ -199,13 +199,16 @@ function Gangs.EndWar(zoneKey)
     local zone = Gangs.Zones[zoneKey]
     if not war or not zone then return end
 
+    -- Highest points wins the zone. Ties keep current owner (defender), or attacker if unowned.
+    local atk = war.attackerScore or 0
+    local def = war.defenderScore or 0
     local winner
-    if war.attackerScore > war.defenderScore then
+    if atk > def then
         winner = war.attacker
-    elseif war.defender and war.defenderScore >= war.attackerScore then
+    elseif def > atk and war.defender then
         winner = war.defender
     else
-        winner = war.attacker
+        winner = war.defender or war.attacker
     end
 
     MySQL.insert.await([[
@@ -220,8 +223,8 @@ function Gangs.EndWar(zoneKey)
         war.defenderScore,
     })
 
-    if winner == war.attacker then
-        Gangs.SetZoneOwner(zoneKey, war.attacker)
+    if winner then
+        Gangs.SetZoneOwner(zoneKey, winner)
     end
 
     local now = os.time()

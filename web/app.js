@@ -351,6 +351,10 @@ function zoneDisplayId(war) {
   return `#${Math.abs(hash % 9000) + 1000}`;
 }
 
+let warHudState = {};
+let warHudClockOffset = 0;
+let warHudTimerHandle = null;
+
 function teamLogoHtml(label, color, logo) {
   if (logo) {
     return `<div class="war-logo war-logo-img" style="--team-color:${esc(color)}"><img src="${esc(logo)}" alt="" /></div>`;
@@ -358,48 +362,152 @@ function teamLogoHtml(label, color, logo) {
   return `<div class="war-logo" style="--team-color:${esc(color)}">${esc(initials(label))}</div>`;
 }
 
-function renderWarHud(wars = []) {
+function formatTimer(endsAt) {
+  const now = Math.floor(Date.now() / 1000) + warHudClockOffset;
+  const remaining = Math.max(0, Number(endsAt || 0) - now);
+  const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
+  const secs = String(remaining % 60).padStart(2, '0');
+  return `${mins}:${secs}`;
+}
+
+function warStructureKey(war) {
+  return [
+    war.zoneKey,
+    war.zoneTitle,
+    war.attackerLabel,
+    war.defenderLabel,
+    war.attackerColor,
+    war.defenderColor,
+    war.attackerLogo || '',
+    war.defenderLogo || '',
+    war.endsAt,
+  ].join('~');
+}
+
+function ensureWarCard(war) {
+  let card = warHudEl.querySelector(`[data-zone="${CSS.escape(String(war.zoneKey))}"]`);
+  if (card) return card;
+
+  card = document.createElement('article');
+  card.className = 'war-card war-card-simple is-new';
+  card.dataset.zone = String(war.zoneKey);
+  card.dataset.structure = warStructureKey(war);
+  card.innerHTML = `
+    <div class="war-simple-head">
+      <div>
+        <span>ZONE WAR · 10 MIN</span>
+        <strong class="war-title">${esc(war.zoneTitle || zoneDisplayId(war))}</strong>
+      </div>
+      <div class="war-timer" data-role="timer">00:00</div>
+    </div>
+    <div class="war-team" data-side="atk" style="--team-color:${esc(war.attackerColor || '#e11d2e')}">
+      ${teamLogoHtml(war.attackerLabel, war.attackerColor || '#e11d2e', war.attackerLogo)}
+      <div class="war-team-copy">
+        <strong class="war-name">${esc(war.attackerLabel || 'Attacker')}</strong>
+        <div class="war-bar"><i data-role="bar" style="width:0%"></i></div>
+      </div>
+      <div class="war-score" data-role="score">0</div>
+    </div>
+    <div class="war-team" data-side="def" style="--team-color:${esc(war.defenderColor || '#2563eb')}">
+      ${teamLogoHtml(war.defenderLabel, war.defenderColor || '#2563eb', war.defenderLogo)}
+      <div class="war-team-copy">
+        <strong class="war-name">${esc(war.defenderLabel || 'Unowned')}</strong>
+        <div class="war-bar"><i data-role="bar" style="width:0%"></i></div>
+      </div>
+      <div class="war-score" data-role="score">0</div>
+    </div>
+  `;
+  warHudEl.appendChild(card);
+  requestAnimationFrame(() => card.classList.remove('is-new'));
+  return card;
+}
+
+function patchWarCard(card, war) {
+  const structure = warStructureKey(war);
+  if (card.dataset.structure !== structure) {
+    card.dataset.structure = structure;
+    card.querySelector('.war-title').textContent = war.zoneTitle || zoneDisplayId(war);
+    card.querySelector('[data-side="atk"] .war-name').textContent = war.attackerLabel || 'Attacker';
+    card.querySelector('[data-side="def"] .war-name').textContent = war.defenderLabel || 'Unowned';
+    card.querySelector('[data-side="atk"]').style.setProperty('--team-color', war.attackerColor || '#e11d2e');
+    card.querySelector('[data-side="def"]').style.setProperty('--team-color', war.defenderColor || '#2563eb');
+
+    const atkLogo = card.querySelector('[data-side="atk"] .war-logo');
+    const defLogo = card.querySelector('[data-side="def"] .war-logo');
+    if (atkLogo) atkLogo.outerHTML = teamLogoHtml(war.attackerLabel, war.attackerColor || '#e11d2e', war.attackerLogo);
+    if (defLogo) defLogo.outerHTML = teamLogoHtml(war.defenderLabel, war.defenderColor || '#2563eb', war.defenderLogo);
+  }
+
+  const atk = Number(war.attackerScore || 0);
+  const def = Number(war.defenderScore || 0);
+  const total = Math.max(1, atk + def);
+  const atkFill = (atk / total) * 100;
+  const defFill = (def / total) * 100;
+
+  const atkScore = card.querySelector('[data-side="atk"] [data-role="score"]');
+  const defScore = card.querySelector('[data-side="def"] [data-role="score"]');
+  const atkBar = card.querySelector('[data-side="atk"] [data-role="bar"]');
+  const defBar = card.querySelector('[data-side="def"] [data-role="bar"]');
+  const timer = card.querySelector('[data-role="timer"]');
+
+  if (atkScore) atkScore.textContent = formatScore(atk);
+  if (defScore) defScore.textContent = formatScore(def);
+  if (atkBar) atkBar.style.width = `${atkFill.toFixed(1)}%`;
+  if (defBar) defBar.style.width = `${defFill.toFixed(1)}%`;
+  if (timer) timer.textContent = formatTimer(war.endsAt);
+
+  card.dataset.endsAt = String(war.endsAt || 0);
+}
+
+function tickWarTimers() {
+  if (!warHudEl) return;
+  warHudEl.querySelectorAll('.war-card[data-ends-at]').forEach((card) => {
+    const timer = card.querySelector('[data-role="timer"]');
+    if (timer) timer.textContent = formatTimer(card.dataset.endsAt);
+  });
+}
+
+function startWarTimerLoop() {
+  if (warHudTimerHandle) return;
+  warHudTimerHandle = setInterval(tickWarTimers, 250);
+}
+
+function stopWarTimerLoop() {
+  if (!warHudTimerHandle) return;
+  clearInterval(warHudTimerHandle);
+  warHudTimerHandle = null;
+}
+
+function renderWarHud(wars = [], serverTime) {
   if (!warHudEl) return;
 
+  if (typeof serverTime === 'number') {
+    warHudClockOffset = serverTime - Math.floor(Date.now() / 1000);
+  }
+
   if (!wars.length) {
+    warHudState = {};
     warHudEl.classList.add('hidden');
     warHudEl.innerHTML = '';
+    stopWarTimerLoop();
     return;
   }
 
   warHudEl.classList.remove('hidden');
-  warHudEl.innerHTML = wars.map((war) => {
-    const atk = Number(war.attackerScore || 0);
-    const def = Number(war.defenderScore || 0);
-    const total = Math.max(1, atk + def);
-    const atkFill = (atk / total) * 100;
-    const defFill = (def / total) * 100;
+  startWarTimerLoop();
 
-    return `
-      <article class="war-card war-card-simple">
-        <div class="war-simple-head">
-          <span>ZONE CONTROL</span>
-          <strong>${esc(war.zoneTitle || zoneDisplayId(war))}</strong>
-        </div>
-        <div class="war-team" style="--team-color:${esc(war.attackerColor || '#e11d2e')}">
-          ${teamLogoHtml(war.attackerLabel, war.attackerColor || '#e11d2e', war.attackerLogo)}
-          <div class="war-team-copy">
-            <strong>${esc(war.attackerLabel || 'Attacker')}</strong>
-            <div class="war-bar"><i style="--fill:${atkFill.toFixed(1)}%"></i></div>
-          </div>
-          <div class="war-score">${esc(formatScore(atk))}</div>
-        </div>
-        <div class="war-team" style="--team-color:${esc(war.defenderColor || '#2563eb')}">
-          ${teamLogoHtml(war.defenderLabel, war.defenderColor || '#2563eb', war.defenderLogo)}
-          <div class="war-team-copy">
-            <strong>${esc(war.defenderLabel || 'Unowned')}</strong>
-            <div class="war-bar"><i style="--fill:${defFill.toFixed(1)}%"></i></div>
-          </div>
-          <div class="war-score">${esc(formatScore(def))}</div>
-        </div>
-      </article>
-    `;
-  }).join('');
+  const active = new Set();
+  wars.forEach((war) => {
+    const key = String(war.zoneKey);
+    active.add(key);
+    warHudState[key] = war;
+    const card = ensureWarCard(war);
+    patchWarCard(card, war);
+  });
+
+  warHudEl.querySelectorAll('.war-card').forEach((card) => {
+    if (!active.has(card.dataset.zone)) card.remove();
+  });
 }
 
 function renderBounties() {
@@ -474,7 +582,7 @@ window.addEventListener('message', (event) => {
     app.classList.remove('hidden');
     renderAll();
   } else if (msg.action === 'warHud') {
-    renderWarHud(msg.wars || []);
+    renderWarHud(msg.wars || [], msg.serverTime);
   }
 });
 
