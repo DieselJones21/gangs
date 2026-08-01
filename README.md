@@ -4,7 +4,7 @@ Original FiveM territory / organization resource with Core Gangs–style gamepla
 
 - Organizations with roles & permissions
 - Capturable zones (house, generation, processing, sales, continental)
-- Zone wars with live scoring
+- Zone wars with live scoring (alive members score, dead members lose points; rival crews can contest)
 - Bounties, criminal stats, titles, leaderboards
 - Zone storages, NPC guards, continental shop
 - Freecam PolyZone editor for admins (`/zoneeditor`) — fly into the sky and click ground points

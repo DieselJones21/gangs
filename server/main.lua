@@ -281,30 +281,30 @@ function Gangs.BuildPlayerPayload(source)
 
 
     local wars = {}
-    for key, war in pairs(Gangs.Wars) do
-        local zone = Gangs.Zones[key]
-        local attackerOrg = war.attacker and Gangs.Orgs[war.attacker] or nil
-        local defenderOrg = war.defender and Gangs.Orgs[war.defender] or nil
+    local clientWars = Gangs.GetClientWars()
+    for key, war in pairs(clientWars) do
         wars[#wars + 1] = {
             zoneKey = key,
-            zoneId = zone and zone.id or nil,
-            zoneTitle = zone and zone.title or key,
+            zoneId = war.zoneId,
+            zoneTitle = war.zoneTitle,
             attacker = war.attacker,
             defender = war.defender,
-            attackerLabel = attackerOrg and attackerOrg.label or war.attacker,
-            defenderLabel = defenderOrg and defenderOrg.label or (war.defender or 'Unowned'),
-            attackerColor = attackerOrg and attackerOrg.color or '#EF4444',
-            defenderColor = defenderOrg and defenderOrg.color or '#3B82F6',
-            attackerLogo = attackerOrg and attackerOrg.logo or nil,
-            defenderLogo = defenderOrg and defenderOrg.logo or nil,
+            attackerLabel = war.attackerLabel,
+            defenderLabel = war.defenderLabel,
+            attackerColor = war.attackerColor,
+            defenderColor = war.defenderColor,
+            attackerLogo = war.attackerLogo,
+            defenderLogo = war.defenderLogo,
             attackerScore = war.attackerScore,
             defenderScore = war.defenderScore,
+            teams = war.teams,
             startedAt = war.startedAt,
             endsAt = war.endsAt,
             duration = war.duration,
-            remaining = math.max(0, (war.endsAt or os.time()) - os.time()),
+            remaining = war.remaining,
         }
     end
+
 
     local bounties = {}
     for _, bounty in ipairs(Gangs.Bounties) do

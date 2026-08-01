@@ -16,36 +16,139 @@ local function orgDisplay(name)
     }
 end
 
+function Gangs.IsPlayerDown(src)
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return true end
+    if IsEntityDead(ped) then return true end
+
+    local health = GetEntityHealth(ped) or 0
+    -- GTA player peds are typically dead at <= 101
+    if health <= 101 then return true end
+
+    local ok, state = pcall(function()
+        return Player(src).state
+    end)
+    if ok and state then
+        if state.isDead or state.dead or state.Laststand or state.laststand or state.inLaststand then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ensureWarScores(war)
+    war.scores = war.scores or {}
+    if war.attacker and war.scores[war.attacker] == nil then
+        war.scores[war.attacker] = war.attackerScore or 0
+    end
+    if war.defender and war.scores[war.defender] == nil then
+        war.scores[war.defender] = war.defenderScore or 0
+    end
+end
+
+local function syncLegacyScores(war)
+    war.attackerScore = (war.attacker and war.scores[war.attacker]) or 0
+    war.defenderScore = (war.defender and war.scores[war.defender]) or 0
+end
+
+local function buildWarTeams(war, limit)
+    ensureWarScores(war)
+    limit = tonumber(limit) or (Config.WarHudMaxTeams or 4)
+    local rows = {}
+    for orgName, score in pairs(war.scores) do
+        local info = orgDisplay(orgName)
+        rows[#rows + 1] = {
+            name = info.name,
+            label = info.label,
+            color = info.color,
+            logo = info.logo,
+            score = tonumber(score) or 0,
+            isAttacker = orgName == war.attacker,
+            isDefender = war.defender ~= nil and orgName == war.defender,
+        }
+    end
+
+    -- Always surface attacker/defender even at 0 so the HUD has a baseline
+    local function ensureNamed(orgName, isAttacker, isDefender)
+        if not orgName then return end
+        for _, row in ipairs(rows) do
+            if row.name == orgName then return end
+        end
+        local info = orgDisplay(orgName)
+        rows[#rows + 1] = {
+            name = info.name,
+            label = info.label,
+            color = info.color,
+            logo = info.logo,
+            score = 0,
+            isAttacker = isAttacker,
+            isDefender = isDefender,
+        }
+    end
+    ensureNamed(war.attacker, true, false)
+    ensureNamed(war.defender, false, true)
+
+    table.sort(rows, function(a, b)
+        if (a.score or 0) == (b.score or 0) then
+            if a.isDefender ~= b.isDefender then return a.isDefender end
+            if a.isAttacker ~= b.isAttacker then return a.isAttacker end
+            return (a.label or '') < (b.label or '')
+        end
+        return (a.score or 0) > (b.score or 0)
+    end)
+
+    local out = {}
+    for i = 1, math.min(limit, #rows) do
+        out[#out + 1] = rows[i]
+    end
+    return out, rows
+end
+
 function Gangs.GetClientWars()
     local payload = {}
     for key, war in pairs(Gangs.Wars) do
         local zone = Gangs.Zones[key]
-        local attacker = orgDisplay(war.attacker)
-        local defender = orgDisplay(war.defender)
-        local leading = attacker
-        if (war.defenderScore or 0) > (war.attackerScore or 0) then
-            leading = defender
-        end
+        ensureWarScores(war)
+        syncLegacyScores(war)
+
+        local teams = buildWarTeams(war, Config.WarHudMaxTeams or 4)
+        local leading = teams[1] or orgDisplay(war.attacker)
         local now = os.time()
         local duration = war.duration or math.floor((Config.BaseZoneWarTime or 10) * 60)
         local endsAt = war.endsAt or (now + duration)
+
+        -- Keep attacker/defender slots as the top two teams for older HUD paths
+        local primary = teams[1] or orgDisplay(war.attacker)
+        local secondary = teams[2] or orgDisplay(war.defender)
+
         payload[key] = {
             zoneKey = key,
             zoneId = zone and zone.id or nil,
             zoneTitle = zone and zone.title or key,
-            attacker = attacker.name,
-            attackerLabel = attacker.label,
-            attackerColor = attacker.color,
-            attackerLogo = attacker.logo,
-            defender = defender.name,
-            defenderLabel = defender.label,
-            defenderColor = defender.color,
-            defenderLogo = defender.logo,
+            attacker = war.attacker,
+            attackerLabel = orgDisplay(war.attacker).label,
+            attackerColor = orgDisplay(war.attacker).color,
+            attackerLogo = orgDisplay(war.attacker).logo,
+            defender = war.defender,
+            defenderLabel = war.defender and orgDisplay(war.defender).label or 'Unowned',
+            defenderColor = war.defender and orgDisplay(war.defender).color or '#3B82F6',
+            defenderLogo = war.defender and orgDisplay(war.defender).logo or nil,
             leadingColor = leading.color,
             leadingLogo = leading.logo,
             leadingLabel = leading.label,
             attackerScore = war.attackerScore,
             defenderScore = war.defenderScore,
+            -- Display scores use ranked teams (supports 3+ org contests)
+            primaryLabel = primary.label,
+            primaryColor = primary.color,
+            primaryLogo = primary.logo,
+            primaryScore = primary.score,
+            secondaryLabel = secondary.label,
+            secondaryColor = secondary.color,
+            secondaryLogo = secondary.logo,
+            secondaryScore = secondary.score or 0,
+            teams = teams,
             startedAt = war.startedAt or (endsAt - duration),
             endsAt = endsAt,
             duration = duration,
@@ -66,7 +169,7 @@ end
 local function countActiveOrgWars(orgName)
     local count = 0
     for _, war in pairs(Gangs.Wars) do
-        if war.attacker == orgName or war.defender == orgName then
+        if war.attacker == orgName or war.defender == orgName or (war.scores and war.scores[orgName] ~= nil) then
             count += 1
         end
     end
@@ -160,17 +263,31 @@ function Gangs.StartWar(source, zoneKey, force)
 
     local duration = math.floor((Config.BaseZoneWarTime or 10) * 60)
     local now = os.time()
+    local scores = {
+        [org.name] = 0,
+    }
+    if zone.owner_org then
+        scores[zone.owner_org] = defenderAdvantage
+    end
+
     local war = {
         zoneKey = zoneKey,
         attacker = org.name,
         defender = zone.owner_org,
         attackerScore = 0,
         defenderScore = zone.owner_org and defenderAdvantage or 0,
+        scores = scores,
         startedAt = now,
         duration = duration,
         endsAt = now + duration,
         players = {},
+        notifiedContestants = {
+            [org.name] = true,
+        },
     }
+    if zone.owner_org then
+        war.notifiedContestants[zone.owner_org] = true
+    end
 
     Gangs.Wars[zoneKey] = war
     TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
@@ -181,6 +298,9 @@ function Gangs.StartWar(source, zoneKey, force)
         Gangs.BroadcastOrg(zone.owner_org, 'gangs:client:notify', Gangs.Locale('war_started', zone.title), 'error')
     end
     Gangs.BroadcastOrg(org.name, 'gangs:client:notify', Gangs.Locale('war_started', zone.title), 'inform')
+    if Config.AllowThirdPartyContest then
+        TriggerClientEvent('gangs:client:notify', -1, Gangs.Locale('war_open_contest', zone.title), 'inform')
+    end
 
     return true, war
 end
@@ -210,8 +330,10 @@ function Gangs.CancelWar(zoneKey)
 
     local title = zone and zone.title or zoneKey
     local message = Gangs.Locale('war_cancelled', title)
-    if war.attacker then Gangs.BroadcastOrg(war.attacker, 'gangs:client:notify', message, 'inform') end
-    if war.defender then Gangs.BroadcastOrg(war.defender, 'gangs:client:notify', message, 'inform') end
+    ensureWarScores(war)
+    for orgName in pairs(war.scores) do
+        Gangs.BroadcastOrg(orgName, 'gangs:client:notify', message, 'inform')
+    end
     return true
 end
 
@@ -232,22 +354,48 @@ function Gangs.AdminClearAllOrgCooldowns()
     return true
 end
 
+local function pickWarWinner(war, zone)
+    ensureWarScores(war)
+    local _, ranked = buildWarTeams(war, 99)
+    if #ranked == 0 then
+        return war.defender or war.attacker or zone.owner_org
+    end
+
+    local top = ranked[1]
+    local topScore = top.score or 0
+    local tied = {}
+    for _, row in ipairs(ranked) do
+        if (row.score or 0) == topScore then
+            tied[#tied + 1] = row
+        end
+    end
+
+    if #tied == 1 then
+        return tied[1].name
+    end
+
+    -- Ties: prefer current defender, then attacker, else keep zone owner
+    for _, row in ipairs(tied) do
+        if war.defender and row.name == war.defender then
+            return row.name
+        end
+    end
+    for _, row in ipairs(tied) do
+        if row.name == war.attacker then
+            return row.name
+        end
+    end
+    return zone.owner_org or tied[1].name
+end
+
 function Gangs.EndWar(zoneKey)
     local war = Gangs.Wars[zoneKey]
     local zone = Gangs.Zones[zoneKey]
     if not war or not zone then return end
 
-    -- Highest points wins the zone. Ties keep current owner (defender), or attacker if unowned.
-    local atk = war.attackerScore or 0
-    local def = war.defenderScore or 0
-    local winner
-    if atk > def then
-        winner = war.attacker
-    elseif def > atk and war.defender then
-        winner = war.defender
-    else
-        winner = war.defender or war.attacker
-    end
+    ensureWarScores(war)
+    syncLegacyScores(war)
+    local winner = pickWarWinner(war, zone)
 
     MySQL.insert.await([[
         INSERT INTO gangs_war_history (zone_key, attacker, defender, winner, attacker_score, defender_score)
@@ -268,38 +416,51 @@ function Gangs.EndWar(zoneKey)
     local now = os.time()
     zone.cooldown_until = now + ((Config.ZoneCooldown or 10) * 60)
     Gangs.SaveZone(zone)
-    Gangs.OrgCooldowns[war.attacker] = now + ((Config.OrganizationCooldown or 5) * 60)
-    if war.defender then
-        Gangs.OrgCooldowns[war.defender] = now + ((Config.OrganizationCooldown or 5) * 60)
+
+    for orgName in pairs(war.scores) do
+        Gangs.OrgCooldowns[orgName] = now + ((Config.OrganizationCooldown or 5) * 60)
     end
 
     for identifier, contrib in pairs(war.players or {}) do
         local src = Gangs.GetSourceByIdentifier(identifier)
         local member = Gangs.Members[identifier]
-        local orgName = member and Gangs.GetOrgById(member.org_id) and Gangs.GetOrgById(member.org_id).name
+        local memberOrg = member and Gangs.GetOrgById(member.org_id)
+        local orgName = memberOrg and memberOrg.name
         if orgName == winner then
             if src then giveWarRewards(src) end
             Gangs.AddStat(identifier, 'wars_won', 1, src)
         end
-        contrib = contrib -- silence unused in some lints
+        contrib = contrib
     end
 
     Gangs.Wars[zoneKey] = nil
     TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
     TriggerClientEvent('gangs:client:syncZones', -1, Gangs.GetClientZones())
 
-    local message = Gangs.Locale('war_ended', zone.title, winner)
-    if war.attacker then Gangs.BroadcastOrg(war.attacker, 'gangs:client:notify', message, 'inform') end
-    if war.defender then Gangs.BroadcastOrg(war.defender, 'gangs:client:notify', message, 'inform') end
+    local winnerLabel = winner and orgDisplay(winner).label or 'None'
+    local message = Gangs.Locale('war_ended', zone.title, winnerLabel)
+    for orgName in pairs(war.scores) do
+        Gangs.BroadcastOrg(orgName, 'gangs:client:notify', message, 'inform')
+    end
 
     if type(onWarEnd) == 'function' then
+        local losers = {}
+        for orgName, score in pairs(war.scores) do
+            if orgName ~= winner then
+                losers[orgName] = {
+                    organization = orgName,
+                    score = score,
+                    playersInvolved = war.players,
+                }
+            end
+        end
         onWarEnd(
-            { organization = winner, score = winner == war.attacker and war.attackerScore or war.defenderScore, playersInvolved = war.players },
-            { [war.attacker == winner and (war.defender or 'none') or war.attacker] = {
-                organization = war.attacker == winner and war.defender or war.attacker,
-                score = war.attacker == winner and war.defenderScore or war.attackerScore,
+            {
+                organization = winner,
+                score = winner and war.scores[winner] or 0,
                 playersInvolved = war.players,
-            } }
+            },
+            losers
         )
     end
 end
@@ -310,13 +471,21 @@ function Gangs.StartWarTicker()
             Wait(1000)
             local now = os.time()
             GlobalState.gangsUnix = now
+            local increase = tonumber(Config.WarScoreIncrease) or 20
+            local deathPenalty = tonumber(Config.WarScoreDeathPenalty) or 20
+            local floor = tonumber(Config.WarScoreFloor) or 0
+            local allowContest = Config.AllowThirdPartyContest ~= false
+
             for zoneKey, war in pairs(Gangs.Wars) do
                 local zone = Gangs.Zones[zoneKey]
                 if not zone then
                     Gangs.Wars[zoneKey] = nil
                 else
-                    local attackerPresent = {}
-                    local defenderPresent = {}
+                    ensureWarScores(war)
+                    war.notifiedContestants = war.notifiedContestants or {}
+
+                    local aliveByOrg = {}
+                    local deadByOrg = {}
 
                     for _, src in ipairs(Bridge.GetPlayers()) do
                         local ped = GetPlayerPed(src)
@@ -328,11 +497,24 @@ function Gangs.StartWarTicker()
                                     local member = identifier and Gangs.Members[identifier]
                                     local org = member and Gangs.GetOrgById(member.org_id)
                                     if org then
-                                        war.players[identifier] = (war.players[identifier] or 0) + (Config.WarScoreIncrease or 5)
-                                        if org.name == war.attacker then
-                                            attackerPresent[src] = true
-                                        elseif war.defender and org.name == war.defender then
-                                            defenderPresent[src] = true
+                                        local isSide = org.name == war.attacker or (war.defender and org.name == war.defender)
+                                        if isSide or allowContest then
+                                            if war.scores[org.name] == nil then
+                                                war.scores[org.name] = 0
+                                            end
+
+                                            if not war.notifiedContestants[org.name] then
+                                                war.notifiedContestants[org.name] = true
+                                                Gangs.BroadcastOrg(org.name, 'gangs:client:notify', Gangs.Locale('war_joined_contest', zone.title), 'inform')
+                                            end
+
+                                            local down = Gangs.IsPlayerDown(src)
+                                            if down then
+                                                deadByOrg[org.name] = (deadByOrg[org.name] or 0) + 1
+                                            else
+                                                aliveByOrg[org.name] = (aliveByOrg[org.name] or 0) + 1
+                                                war.players[identifier] = (war.players[identifier] or 0) + increase
+                                            end
                                         end
                                     end
                                 end
@@ -340,12 +522,14 @@ function Gangs.StartWarTicker()
                         end
                     end
 
-                    local atkCount, defCount = 0, 0
-                    for _ in pairs(attackerPresent) do atkCount += 1 end
-                    for _ in pairs(defenderPresent) do defCount += 1 end
+                    for orgName, _ in pairs(war.scores) do
+                        local alive = aliveByOrg[orgName] or 0
+                        local dead = deadByOrg[orgName] or 0
+                        local delta = (alive * increase) - (dead * deathPenalty)
+                        war.scores[orgName] = math.max(floor, (war.scores[orgName] or 0) + delta)
+                    end
 
-                    war.attackerScore += atkCount * (Config.WarScoreIncrease or 5)
-                    war.defenderScore += defCount * (Config.WarScoreIncrease or 5)
+                    syncLegacyScores(war)
 
                     if now >= war.endsAt then
                         Gangs.EndWar(zoneKey)
@@ -353,7 +537,6 @@ function Gangs.StartWarTicker()
                 end
             end
 
-            -- Sync score snapshots once per second; clients patch HUD in-place (no flicker)
             if next(Gangs.Wars) then
                 TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
             end

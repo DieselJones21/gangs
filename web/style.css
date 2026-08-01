@@ -510,7 +510,14 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(255,255,255,0.18);
 }
 
+.war-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .war-team {
+  position: relative;
   display: grid;
   grid-template-columns: 38px 1fr auto;
   gap: 10px;
@@ -518,6 +525,16 @@ button:disabled {
   padding: 9px 6px;
   border-radius: 12px;
   transition: background 0.2s ease;
+}
+
+.war-lead-tag {
+  position: absolute;
+  right: 58px;
+  top: 4px;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  color: #fecaca;
 }
 
 .war-team + .war-team {
