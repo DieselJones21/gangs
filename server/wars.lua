@@ -314,6 +314,7 @@ function Gangs.StartWarTicker()
                 end
             end
 
+            -- Sync score snapshots once per second; clients patch HUD in-place (no flicker)
             if next(Gangs.Wars) then
                 TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
             end
