@@ -16,6 +16,10 @@ Config.OpenKey = 'F9'
 Config.OpenCommand = 'criminal'
 Config.Locale = 'en'
 
+-- /zoneeditor freecam PolyZone creator
+Config.ZoneEditorStartHeight = 45.0 -- how high freecam starts above the player
+Config.ZoneEditorBaseSpeed = 0.65   -- freecam move speed multiplier
+
 Config.CurrencyName = 'bitcoin'
 Config.CurrencyLabel = 'Bitcoin'
 
