@@ -26,6 +26,9 @@ function Gangs.GetClientWars()
         if (war.defenderScore or 0) > (war.attackerScore or 0) then
             leading = defender
         end
+        local now = os.time()
+        local duration = war.duration or math.floor((Config.BaseZoneWarTime or 10) * 60)
+        local endsAt = war.endsAt or (now + duration)
         payload[key] = {
             zoneKey = key,
             zoneId = zone and zone.id or nil,
@@ -43,9 +46,10 @@ function Gangs.GetClientWars()
             leadingLabel = leading.label,
             attackerScore = war.attackerScore,
             defenderScore = war.defenderScore,
-            startedAt = war.startedAt,
-            endsAt = war.endsAt,
-            duration = war.duration,
+            startedAt = war.startedAt or (endsAt - duration),
+            endsAt = endsAt,
+            duration = duration,
+            remaining = math.max(0, endsAt - now),
             points = zone and zone.points or {},
             minZ = zone and zone.min_z or nil,
             maxZ = zone and zone.max_z or nil,
@@ -271,6 +275,7 @@ function Gangs.StartWarTicker()
         while true do
             Wait(1000)
             local now = os.time()
+            GlobalState.gangsUnix = now
             for zoneKey, war in pairs(Gangs.Wars) do
                 local zone = Gangs.Zones[zoneKey]
                 if not zone then
