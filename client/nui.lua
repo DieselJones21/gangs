@@ -30,6 +30,7 @@ end
 RegisterNUICallback('close', function(_, cb)
     Gangs.MenuOpen = false
     SetNuiFocus(false, false)
+    SendNUIMessage({ action = 'forceTransparent' })
     respond(cb, { ok = true })
 end)
 
@@ -136,4 +137,16 @@ RegisterNUICallback('getNearbyPlayers', function(_, cb)
         end
     end
     respond(cb, list)
+end)
+
+RegisterNUICallback('setWaypoint', function(data, cb)
+    local x = data and tonumber(data.x)
+    local y = data and tonumber(data.y)
+    if not x or not y then
+        respond(cb, { success = false, error = 'Invalid coordinates' })
+        return
+    end
+    SetNewWaypoint(x + 0.0, y + 0.0)
+    Bridge.Notify(('Waypoint set to %s'):format((data and data.label) or 'zone'), 'success')
+    respond(cb, { success = true })
 end)

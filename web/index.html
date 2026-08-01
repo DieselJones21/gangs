@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Criminal Tablet</title>
+  <title>Rebel Roleplay Criminal Tablet</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,8 +16,9 @@
     <div class="shell">
       <aside class="rail">
         <div class="brand">
-          <span class="brand-mark">CT</span>
+          <span class="brand-mark">RR</span>
           <div>
+            <p class="brand-kicker">Rebel Roleplay</p>
             <h1>Criminal Tablet</h1>
             <p id="playerMeta">—</p>
           </div>
@@ -25,6 +26,7 @@
         <nav id="nav">
           <button class="nav-btn active" data-tab="overview">Overview</button>
           <button class="nav-btn" data-tab="org">Organization</button>
+          <button class="nav-btn" data-tab="map">City Map</button>
           <button class="nav-btn" data-tab="zones">Territories</button>
           <button class="nav-btn" data-tab="wars">Wars</button>
           <button class="nav-btn" data-tab="bounties">Bounties</button>
@@ -37,7 +39,7 @@
         <section id="tab-overview" class="tab active">
           <header class="section-head">
             <h2>Overview</h2>
-            <p>Your standing in the city underground.</p>
+            <p>Your standing in the Rebel Roleplay underground.</p>
           </header>
           <div class="stat-grid" id="overviewStats"></div>
           <div class="panel" id="overviewOrg"></div>
@@ -49,6 +51,57 @@
             <p>Create a crew, manage ranks, and grow power.</p>
           </header>
           <div id="orgPanel"></div>
+        </section>
+
+        <section id="tab-map" class="tab">
+          <header class="section-head">
+            <h2>City Map</h2>
+            <p>Every zone on the board — who owns it, and how to get there.</p>
+          </header>
+          <div class="map-layout">
+            <div class="map-stage" id="mapStage">
+              <svg id="cityMap" class="city-map" viewBox="0 0 1000 1000" role="img" aria-label="Los Santos territory map">
+                <defs>
+                  <linearGradient id="mapSea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#0a1628"/>
+                    <stop offset="100%" stop-color="#07101c"/>
+                  </linearGradient>
+                  <linearGradient id="mapLand" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#121a28"/>
+                    <stop offset="55%" stop-color="#0e1520"/>
+                    <stop offset="100%" stop-color="#0b121c"/>
+                  </linearGradient>
+                  <pattern id="mapGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(96,165,250,0.06)" stroke-width="1"/>
+                  </pattern>
+                </defs>
+                <rect width="1000" height="1000" fill="url(#mapSea)"/>
+                <!-- Stylized landmass (approximate LS / Blaine silhouette) -->
+                <path class="map-land" d="M120,180 C220,90 420,70 560,110 C700,150 820,210 880,320 C930,420 940,560 900,680 C860,790 760,870 620,900 C470,930 300,910 200,820 C110,740 70,600 80,460 C90,330 70,250 120,180 Z" fill="url(#mapLand)"/>
+                <rect width="1000" height="1000" fill="url(#mapGrid)"/>
+                <!-- Soft road hints -->
+                <g class="map-roads" fill="none" stroke="rgba(148,163,184,0.12)" stroke-width="3">
+                  <path d="M180,720 C320,680 480,640 640,600 C760,570 840,480 860,360"/>
+                  <path d="M240,260 C360,320 420,420 480,540 C520,620 560,700 620,780"/>
+                  <path d="M140,480 H860"/>
+                  <path d="M520,140 V860"/>
+                </g>
+                <g id="mapZones"></g>
+                <g id="mapMarkers"></g>
+              </svg>
+              <div class="map-hint">Click a zone to inspect · Set a waypoint to GPS there</div>
+            </div>
+            <aside class="map-side">
+              <div id="mapSelection" class="map-selection empty-panel">
+                <h3>Select a zone</h3>
+                <p class="muted">Tap any territory on the map to see ownership and drop a waypoint.</p>
+              </div>
+              <div class="map-legend-wrap">
+                <h4>Ownership</h4>
+                <div id="mapLegend" class="map-legend"></div>
+              </div>
+            </aside>
+          </div>
         </section>
 
         <section id="tab-zones" class="tab">

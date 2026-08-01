@@ -70,6 +70,198 @@ function setTab(tab) {
   document.querySelectorAll('.tab').forEach((el) => {
     el.classList.toggle('active', el.id === `tab-${tab}`);
   });
+  if (tab === 'map') {
+    requestAnimationFrame(() => renderMap());
+  }
+}
+
+// GTA V world bounds used to project zone polygons onto the city map SVG
+const MAP_BOUNDS = {
+  west: -4140,
+  east: 4860,
+  north: 8400,
+  south: -5100,
+  width: 1000,
+  height: 1000,
+};
+
+let selectedZoneKey = null;
+
+function worldToMap(x, y) {
+  const px = ((Number(x) - MAP_BOUNDS.west) / (MAP_BOUNDS.east - MAP_BOUNDS.west)) * MAP_BOUNDS.width;
+  const py = ((MAP_BOUNDS.north - Number(y)) / (MAP_BOUNDS.north - MAP_BOUNDS.south)) * MAP_BOUNDS.height;
+  return {
+    x: Math.max(-40, Math.min(MAP_BOUNDS.width + 40, px)),
+    y: Math.max(-40, Math.min(MAP_BOUNDS.height + 40, py)),
+  };
+}
+
+function zoneOwnerLabel(z) {
+  return z.ownerLabel || z.owner || 'Unowned';
+}
+
+function zoneOwnerColor(z) {
+  return z.ownerColor || (z.owner ? '#94a3b8' : '#64748b');
+}
+
+function zoneCenter(z) {
+  if (z.center && z.center.x != null && z.center.y != null) {
+    return { x: Number(z.center.x), y: Number(z.center.y), z: Number(z.center.z || 0) };
+  }
+  const pts = z.points || [];
+  if (!pts.length) return null;
+  let sx = 0;
+  let sy = 0;
+  pts.forEach((p) => {
+    sx += Number(p.x ?? p[0] ?? 0);
+    sy += Number(p.y ?? p[1] ?? 0);
+  });
+  return { x: sx / pts.length, y: sy / pts.length, z: 0 };
+}
+
+async function setZoneWaypoint(zone) {
+  const center = zoneCenter(zone);
+  if (!center) {
+    showToast('No coordinates for this zone', 'error');
+    return;
+  }
+  const result = await nui('setWaypoint', {
+    x: center.x,
+    y: center.y,
+    label: zone.title || zone.key,
+  });
+  if (result?.success === false) {
+    showToast(result.error || 'Could not set waypoint', 'error');
+    return;
+  }
+  showToast(`Waypoint set: ${zone.title || 'zone'}`, 'success');
+}
+
+function selectMapZone(key) {
+  selectedZoneKey = key;
+  renderMapSelection();
+  document.querySelectorAll('.map-zone').forEach((el) => {
+    el.classList.toggle('is-selected', el.dataset.key === key);
+  });
+}
+
+function renderMapSelection() {
+  const panel = document.getElementById('mapSelection');
+  if (!panel) return;
+  const zones = state?.zones || [];
+  const z = zones.find((item) => item.key === selectedZoneKey);
+  if (!z) {
+    panel.className = 'map-selection empty-panel';
+    panel.innerHTML = `
+      <h3>Select a zone</h3>
+      <p class="muted">Tap any territory on the map to see ownership and drop a waypoint.</p>
+    `;
+    return;
+  }
+
+  const color = zoneOwnerColor(z);
+  const owner = zoneOwnerLabel(z);
+  panel.className = 'map-selection';
+  panel.innerHTML = `
+    <h3>${esc(z.title)} <span class="badge">${esc(z.type)}</span></h3>
+    <div class="owner-line">
+      <span class="owner-swatch" style="background:${esc(color)}"></span>
+      <span>${z.owner ? `Owned by <strong>${esc(owner)}</strong>` : '<strong>Unowned</strong>'}</span>
+    </div>
+    <p class="muted">Protection ${esc(z.protection)} · NPCs ${esc(z.npcCount)}${z.inWar ? ' · IN WAR' : ''}</p>
+    <div class="actions">
+      <button class="primary" id="mapWaypointBtn">Set Waypoint</button>
+      ${z.inWar ? '<span class="badge">Live war</span>' : ''}
+    </div>
+  `;
+  const btn = document.getElementById('mapWaypointBtn');
+  if (btn) btn.onclick = () => setZoneWaypoint(z);
+}
+
+function renderMapLegend(zones) {
+  const legend = document.getElementById('mapLegend');
+  if (!legend) return;
+
+  const counts = new Map();
+  zones.forEach((z) => {
+    const key = z.owner || '__unowned__';
+    const label = zoneOwnerLabel(z);
+    const color = zoneOwnerColor(z);
+    const entry = counts.get(key) || { label, color, count: 0 };
+    entry.count += 1;
+    counts.set(key, entry);
+  });
+
+  const rows = Array.from(counts.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  legend.innerHTML = rows.length
+    ? rows.map((r) => `
+      <div class="map-legend-item">
+        <span class="owner-swatch" style="background:${esc(r.color)}"></span>
+        <span>${esc(r.label)}</span>
+        <span>${esc(r.count)}</span>
+      </div>
+    `).join('')
+    : `<p class="muted">No zones loaded.</p>`;
+}
+
+function renderMap() {
+  const layer = document.getElementById('mapZones');
+  const markers = document.getElementById('mapMarkers');
+  if (!layer || !markers || !state) return;
+
+  const zones = state.zones || [];
+  renderMapLegend(zones);
+
+  if (!zones.length) {
+    layer.innerHTML = '';
+    markers.innerHTML = '';
+    selectedZoneKey = null;
+    renderMapSelection();
+    return;
+  }
+
+  if (selectedZoneKey && !zones.some((z) => z.key === selectedZoneKey)) {
+    selectedZoneKey = null;
+  }
+
+  layer.innerHTML = zones.map((z) => {
+    const pts = (z.points || [])
+      .map((p) => worldToMap(p.x ?? p[0], p.y ?? p[1]))
+      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+    const color = zoneOwnerColor(z);
+    const selected = z.key === selectedZoneKey ? ' is-selected' : '';
+    const war = z.inWar ? ' is-war' : '';
+
+    if (pts.length >= 3) {
+      const points = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      return `<polygon class="map-zone${selected}${war}" data-key="${esc(z.key)}" points="${points}" fill="${esc(color)}" fill-opacity="0.38" stroke="${esc(color)}"></polygon>`;
+    }
+
+    const center = zoneCenter(z);
+    if (!center) return '';
+    const mapped = worldToMap(center.x, center.y);
+    return `<circle class="map-zone${selected}${war}" data-key="${esc(z.key)}" cx="${mapped.x.toFixed(1)}" cy="${mapped.y.toFixed(1)}" r="14" fill="${esc(color)}" fill-opacity="0.45" stroke="${esc(color)}"></circle>`;
+  }).join('');
+
+  markers.innerHTML = zones.map((z) => {
+    const center = zoneCenter(z);
+    if (!center) return '';
+    const mapped = worldToMap(center.x, center.y);
+    const label = (z.title || z.key || '').slice(0, 18);
+    return `
+      <g class="map-marker" data-key="${esc(z.key)}">
+        <circle cx="${mapped.x.toFixed(1)}" cy="${mapped.y.toFixed(1)}" r="3.5" fill="#f8fafc" stroke="${esc(zoneOwnerColor(z))}" stroke-width="2"></circle>
+        <text x="${mapped.x.toFixed(1)}" y="${(mapped.y - 10).toFixed(1)}" text-anchor="middle" fill="#e2e8f0" font-size="11" font-family="IBM Plex Sans, sans-serif">${esc(label)}</text>
+      </g>
+    `;
+  }).join('');
+
+  layer.querySelectorAll('.map-zone').forEach((el) => {
+    el.addEventListener('click', () => selectMapZone(el.dataset.key));
+  });
+
+  renderMapSelection();
 }
 
 function esc(value) {
@@ -93,7 +285,7 @@ function renderOverview() {
   `;
 
   document.getElementById('overviewOrg').innerHTML = org
-    ? `<h3 style="margin:0 0 8px;font-family:Syne,sans-serif;">${esc(org.label)}</h3>
+    ? `<h3 style="margin:0 0 8px;font-family:var(--display);">${esc(org.label)}</h3>
        <p class="muted">Power rating ${esc(org.power)} · Bank ${esc(org.bank)} · Role ${esc(p.roleName || 'Member')}</p>`
     : `<p class="muted">You are not in an organization. Create one from the Organization tab.</p>`;
 }
@@ -279,13 +471,16 @@ function renderZones() {
   panel.innerHTML = zones.map((z) => {
     const owned = orgName && z.owner === orgName;
     const canWar = orgName && !owned && z.type !== 'continental' && perms.canStartWar;
+    const owner = zoneOwnerLabel(z);
+    const color = zoneOwnerColor(z);
     return `
       <div class="row">
         <div>
           <h3>${esc(z.title)} <span class="badge">${esc(z.type)}</span></h3>
-          <p>Owner: ${esc(z.owner || 'Unowned')} · Protection ${esc(z.protection)} · NPCs ${esc(z.npcCount)}${z.inWar ? ' · IN WAR' : ''}</p>
+          <p><span class="zone-owner-dot" style="background:${esc(color)}"></span>Owner: ${esc(owner)} · Protection ${esc(z.protection)} · NPCs ${esc(z.npcCount)}${z.inWar ? ' · IN WAR' : ''}</p>
         </div>
         <div class="actions">
+          <button class="soft" data-waypoint="${esc(z.key)}">Waypoint</button>
           ${canWar ? `<button class="danger" data-war="${esc(z.key)}">Start War</button>` : ''}
           ${owned && perms.canManageZones ? `<button class="soft" data-prot="${esc(z.key)}">Upgrade Protection</button>` : ''}
           ${owned && perms.canManageZones ? `<button class="soft" data-npc="${esc(z.key)}">Upgrade NPCs</button>` : ''}
@@ -294,6 +489,12 @@ function renderZones() {
     `;
   }).join('');
 
+  panel.querySelectorAll('[data-waypoint]').forEach((btn) => {
+    btn.onclick = () => {
+      const zone = zones.find((z) => z.key === btn.dataset.waypoint);
+      if (zone) setZoneWaypoint(zone);
+    };
+  });
   panel.querySelectorAll('[data-war]').forEach((btn) => {
     btn.onclick = async () => {
       const result = await runAction(() => nui('startWar', { zoneKey: btn.dataset.war }));
@@ -572,6 +773,7 @@ function renderAll() {
   try {
     renderOverview();
     renderOrg();
+    renderMap();
     renderZones();
     renderWars();
     renderBounties();
@@ -611,12 +813,17 @@ window.addEventListener('message', (event) => {
     renderAll();
   } else if (msg.action === 'warHud') {
     renderWarHud(msg.wars || []);
+  } else if (msg.action === 'forceTransparent') {
+    app.classList.add('hidden');
+    document.body.style.background = 'transparent';
+    document.documentElement.style.background = 'transparent';
   }
 });
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !app.classList.contains('hidden')) {
     app.classList.add('hidden');
+    document.body.style.background = 'transparent';
     nui('close');
   }
 });
