@@ -31,7 +31,7 @@ function Bridge.Notify(message, nType)
     nType = nType or 'inform'
     if GetResourceState('ox_lib') == 'started' then
         lib.notify({
-            title = 'Gangs',
+            title = 'Criminal Tablet',
             description = message,
             type = nType == 'error' and 'error' or (nType == 'success' and 'success' or 'inform'),
         })

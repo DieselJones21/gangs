@@ -1,33 +1,44 @@
+local function pushWarHud()
+    local list = {}
+    for key, war in pairs(Gangs.Wars or {}) do
+        list[#list + 1] = {
+            zoneKey = key,
+            zoneId = war.zoneId,
+            zoneTitle = war.zoneTitle or key,
+            attackerLabel = war.attackerLabel or war.attacker or 'Attacker',
+            defenderLabel = war.defenderLabel or war.defender or 'Unowned',
+            attackerColor = war.attackerColor or '#EF4444',
+            defenderColor = war.defenderColor or '#3B82F6',
+            attackerScore = war.attackerScore or 0,
+            defenderScore = war.defenderScore or 0,
+            startedAt = war.startedAt,
+            endsAt = war.endsAt,
+            duration = war.duration or math.floor((Config.BaseZoneWarTime or 10) * 60),
+        }
+    end
+
+    table.sort(list, function(a, b)
+        return tostring(a.zoneKey) < tostring(b.zoneKey)
+    end)
+
+    SendNUIMessage({
+        action = 'warHud',
+        wars = list,
+        serverTime = os.time(),
+    })
+end
+
+AddEventHandler('gangs:client:warsUpdated', pushWarHud)
+
+-- Keep the timer ring smooth even between server sync ticks
 CreateThread(function()
     while true do
-        local sleep = 1000
-        local wars = Gangs.Wars or {}
-        if next(wars) then
-            sleep = 0
-            local y = 0.02
-            for _, war in pairs(wars) do
-                local remaining = math.max(0, (war.endsAt or 0) - os.time())
-                local mins = math.floor(remaining / 60)
-                local secs = remaining % 60
-                local text = ('WAR %s | %s %d vs %s %d | %02d:%02d'):format(
-                    war.zoneTitle or war.zoneKey,
-                    war.attacker or '?',
-                    war.attackerScore or 0,
-                    war.defender or 'Unowned',
-                    war.defenderScore or 0,
-                    mins,
-                    secs
-                )
-                SetTextFont(4)
-                SetTextScale(0.35, 0.35)
-                SetTextColour(255, 80, 80, 220)
-                SetTextOutline()
-                SetTextEntry('STRING')
-                AddTextComponentString(text)
-                DrawText(0.015, y)
-                y = y + 0.025
-            end
+        if Gangs.Wars and next(Gangs.Wars) then
+            pushWarHud()
+            Wait(250)
+        else
+            SendNUIMessage({ action = 'warHud', wars = {}, serverTime = os.time() })
+            Wait(1000)
         end
-        Wait(sleep)
     end
 end)

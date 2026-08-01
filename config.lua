@@ -137,8 +137,15 @@ Config.TimeWhenWarCanStart = {
 }
 
 Config.DisplayWarWall = true
-Config.DisplayWallWarForEveryone = false
+Config.DisplayWallWarForEveryone = true
 Config.DistanceToDisplayWall = 260.0
+Config.WarWallHeight = 18.0
+Config.WarWallStripeWidth = 1.35
+Config.WarWallColors = {
+    red = { 210, 24, 42 },
+    blue = { 28, 92, 220 },
+    black = { 8, 8, 10 },
+}
 
 Config.ZoneTypeTemplates = {
     weed_generation = {

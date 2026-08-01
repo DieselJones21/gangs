@@ -114,7 +114,7 @@ function Bridge.Notify(source, message, nType)
     nType = nType or 'inform'
     if GetResourceState('ox_lib') == 'started' then
         TriggerClientEvent('ox_lib:notify', source, {
-            title = 'Gangs',
+            title = 'Criminal Tablet',
             description = message,
             type = nType == 'error' and 'error' or (nType == 'success' and 'success' or 'inform'),
         })

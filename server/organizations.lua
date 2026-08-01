@@ -10,6 +10,9 @@ local function createDefaultRoles(orgId)
             'INSERT INTO gangs_roles (org_id, name, grade, permissions) VALUES (?, ?, ?, ?)',
             { orgId, def.name, def.grade or 0, Gangs.Encode(def.permissions or {}) }
         )
+        if not id then
+            return {}
+        end
         roleIds[#roleIds + 1] = {
             id = id,
             name = def.name,
