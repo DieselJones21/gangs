@@ -150,3 +150,68 @@ RegisterNUICallback('setWaypoint', function(data, cb)
     Bridge.Notify(('Waypoint set to %s'):format((data and data.label) or 'zone'), 'success')
     respond(cb, { success = true })
 end)
+
+RegisterNUICallback('adminCreateOrg', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminCreateOrg', data and data.label, data and data.color, data and data.ownerSource)
+            or { success = false, error = 'Failed to create organization' }
+    end)
+end)
+
+RegisterNUICallback('adminDeleteOrg', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminDeleteOrg', data and data.orgName)
+            or { success = false, error = 'Failed to delete organization' }
+    end)
+end)
+
+RegisterNUICallback('adminStopWar', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminStopWar', data and data.zoneKey)
+            or { success = false, error = 'Failed to stop war' }
+    end)
+end)
+
+RegisterNUICallback('adminSetZoneOwner', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminSetZoneOwner', data and data.zoneKey, data and data.orgName)
+            or { success = false, error = 'Failed to set zone owner' }
+    end)
+end)
+
+RegisterNUICallback('adminDeleteZone', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminDeleteZone', data and data.zoneKey)
+            or { success = false, error = 'Failed to delete zone' }
+    end)
+end)
+
+RegisterNUICallback('adminSetZoneCooldown', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminSetZoneCooldown', data and data.zoneKey, data and data.minutes)
+            or { success = false, error = 'Failed to update zone cooldown' }
+    end)
+end)
+
+RegisterNUICallback('adminSetOrgCooldown', function(data, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminSetOrgCooldown', data and data.orgName, data and data.minutes)
+            or { success = false, error = 'Failed to update org cooldown' }
+    end)
+end)
+
+RegisterNUICallback('adminClearAllCooldowns', function(_, cb)
+    nuiAsync(cb, function()
+        return awaitCallback('gangs:adminClearAllCooldowns')
+            or { success = false, error = 'Failed to clear cooldowns' }
+    end)
+end)
+
+RegisterNUICallback('openZoneEditor', function(_, cb)
+    respond(cb, { ok = true })
+    TriggerEvent('gangs:client:openZoneEditor')
+    -- Close tablet so freecam editor can take focus
+    Gangs.MenuOpen = false
+    SetNuiFocus(false, false)
+    SendNUIMessage({ action = 'forceTransparent' })
+end)

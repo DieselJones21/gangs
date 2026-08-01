@@ -325,6 +325,137 @@ function Gangs.SetOrgLogo(source, logoUrl)
     return true
 end
 
+function Gangs.AdminCreateOrganization(adminSource, label, color, ownerSource)
+    ownerSource = tonumber(ownerSource)
+    if not ownerSource or GetPlayerPed(ownerSource) == 0 then
+        return false, Gangs.Locale('invalid_target')
+    end
+
+    local identifier = Bridge.GetIdentifier(ownerSource)
+    if not identifier then return false, Gangs.Locale('invalid_target') end
+    if Gangs.Members[identifier] then
+        return false, Gangs.Locale('already_in_org')
+    end
+
+    label = tostring(label or ''):gsub('^%s+', ''):gsub('%s+$', '')
+    if label == '' or #label < 2 then
+        return false, 'Invalid organization name'
+    end
+
+    local name = sanitizeName(label)
+    if name == '' then return false, 'Invalid organization name' end
+    if Gangs.Orgs[name] then
+        return false, Gangs.Locale('org_exists')
+    end
+
+    color = tostring(color or '#DE2A21')
+    if not color:match('^#%x%x%x%x%x%x$') then
+        color = '#DE2A21'
+    end
+
+    local orgId = MySQL.insert.await(
+        'INSERT INTO gangs_organizations (name, label, color, owner) VALUES (?, ?, ?, ?)',
+        { name, label, color, identifier }
+    )
+    if not orgId then
+        return false, 'Database failed to create organization'
+    end
+
+    local roles = createDefaultRoles(orgId)
+    local leaderRole = roles[1]
+    if not leaderRole or not leaderRole.id then
+        MySQL.query.await('DELETE FROM gangs_organizations WHERE id = ?', { orgId })
+        return false, 'Database failed to create organization roles'
+    end
+
+    local org = {
+        id = orgId,
+        name = name,
+        label = label,
+        color = color,
+        logo = nil,
+        owner = identifier,
+        power = 0,
+        bank = 0,
+        roles = {},
+        members = {},
+    }
+    for _, role in ipairs(roles) do
+        org.roles[role.id] = role
+    end
+
+    local memberId = MySQL.insert.await(
+        'INSERT INTO gangs_members (org_id, identifier, citizenid, name, role_id) VALUES (?, ?, ?, ?, ?)',
+        { orgId, identifier, identifier, Bridge.GetCharName(ownerSource), leaderRole.id }
+    )
+    if not memberId then
+        MySQL.query.await('DELETE FROM gangs_organizations WHERE id = ?', { orgId })
+        return false, 'Database failed to create organization member'
+    end
+
+    local member = {
+        id = memberId,
+        org_id = orgId,
+        identifier = identifier,
+        citizenid = identifier,
+        name = Bridge.GetCharName(ownerSource),
+        role_id = leaderRole.id,
+        org_name = name,
+    }
+
+    org.members[identifier] = member
+    Gangs.Orgs[name] = org
+    Gangs.Members[identifier] = member
+    pcall(Gangs.EnsureStats, ownerSource)
+
+    Bridge.Notify(ownerSource, Gangs.Locale('org_created', label), 'success')
+    if adminSource and adminSource ~= ownerSource then
+        Bridge.Notify(adminSource, Gangs.Locale('admin_org_created', label, Bridge.GetCharName(ownerSource)), 'success')
+    end
+    return true, org
+end
+
+function Gangs.AdminDeleteOrganization(orgName)
+    orgName = tostring(orgName or '')
+    local org = Gangs.Orgs[orgName]
+    if not org then return false, 'Organization not found' end
+
+    -- Cancel wars involving this org (collect keys first — table mutates)
+    local warKeys = {}
+    for zoneKey, war in pairs(Gangs.Wars) do
+        if war.attacker == orgName or war.defender == orgName then
+            warKeys[#warKeys + 1] = zoneKey
+        end
+    end
+    for _, zoneKey in ipairs(warKeys) do
+        Gangs.CancelWar(zoneKey)
+    end
+
+
+    for identifier, member in pairs(org.members) do
+        Gangs.Members[identifier] = nil
+        local src = Gangs.GetSourceByIdentifier(identifier)
+        if src then
+            Bridge.Notify(src, Gangs.Locale('admin_org_deleted', org.label), 'error')
+        end
+        member = member -- keep lint quiet
+    end
+
+    for _, zone in pairs(Gangs.Zones) do
+        if zone.owner_org == orgName then
+            zone.owner_org = nil
+            Gangs.SaveZone(zone)
+        end
+    end
+
+    MySQL.query.await('DELETE FROM gangs_organizations WHERE id = ?', { org.id })
+    Gangs.Orgs[orgName] = nil
+    Gangs.OrgCooldowns[orgName] = nil
+    TriggerClientEvent('gangs:client:syncZones', -1, Gangs.GetClientZones())
+    TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
+    return true
+end
+
 function Gangs.SetMemberRole(source, targetIdentifier, roleId)
     local member = Gangs.GetMember(source)
     if not member then return false, Gangs.Locale('not_in_org') end

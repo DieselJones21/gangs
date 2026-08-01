@@ -39,4 +39,10 @@ Locales.en = {
     zone_set = 'Zone ownership updated.',
     no_zone = 'You are not inside a configured zone.',
     current_zone = 'Current zone: %s (%s)',
+    war_cancelled = 'War cancelled on %s.',
+    admin_org_created = 'Created organization %s for %s.',
+    admin_org_deleted = 'Your organization %s was removed by an admin.',
+    admin_org_removed = 'Organization %s deleted.',
+    admin_cooldown_updated = 'Cooldown updated.',
+    admin_cooldowns_cleared = 'All war cooldowns cleared.',
 }

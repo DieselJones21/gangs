@@ -5,6 +5,13 @@ local function ensureAdmin(source)
     return false
 end
 
+local function adminResult(source, ok, err)
+    if ok then
+        return { success = true, data = Gangs.BuildPlayerPayload(source) }
+    end
+    return { success = false, error = err or Gangs.Locale('no_permission') }
+end
+
 RegisterCommand('zoneeditor', function(source)
     if source == 0 then return end
     if not ensureAdmin(source) then return end
@@ -70,6 +77,18 @@ RegisterCommand('criminal', function(source, args)
         end
         local ok, err = Gangs.StartWar(source, zoneKey, true)
         if not ok then Bridge.Notify(source, err or 'Failed', 'error') end
+    elseif sub == 'stopwar' then
+        local zoneKey = args[2]
+        if not zoneKey then
+            Bridge.Notify(source, 'Usage: /criminal stopwar <zoneKey>', 'error')
+            return
+        end
+        local ok, err = Gangs.CancelWar(zoneKey)
+        if ok then
+            Bridge.Notify(source, Gangs.Locale('war_cancelled', zoneKey), 'success')
+        else
+            Bridge.Notify(source, err or 'Failed', 'error')
+        end
     elseif sub == 'createzone' then
         TriggerClientEvent('gangs:client:openZoneEditor', source)
     elseif sub == 'deletezone' then
@@ -121,4 +140,91 @@ lib.callback.register('gangs:adminCreateZone', function(source, payload)
     if not ok then return { success = false, error = result } end
     Bridge.Notify(source, Gangs.Locale('zone_created', key), 'success')
     return { success = true, zone = { key = key, title = result.title, type = result.type } }
+end)
+
+lib.callback.register('gangs:adminCreateOrg', function(source, label, color, ownerSource)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    local ok, result = Gangs.AdminCreateOrganization(source, label, color, ownerSource)
+    return adminResult(source, ok, result)
+end)
+
+lib.callback.register('gangs:adminDeleteOrg', function(source, orgName)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    local ok, err = Gangs.AdminDeleteOrganization(orgName)
+    if ok then
+        Bridge.Notify(source, Gangs.Locale('admin_org_removed', orgName), 'success')
+    end
+    return adminResult(source, ok, err)
+end)
+
+lib.callback.register('gangs:adminStopWar', function(source, zoneKey)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    local ok, err = Gangs.CancelWar(zoneKey)
+    if ok then
+        Bridge.Notify(source, Gangs.Locale('war_cancelled', zoneKey), 'success')
+    end
+    return adminResult(source, ok, err)
+end)
+
+lib.callback.register('gangs:adminSetZoneOwner', function(source, zoneKey, orgName)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    if orgName == '' or orgName == false or orgName == 'none' then
+        orgName = nil
+    end
+    local ok = Gangs.SetZoneOwner(zoneKey, orgName)
+    if ok then
+        Bridge.Notify(source, Gangs.Locale('zone_set'), 'success')
+    end
+    return adminResult(source, ok, ok and nil or 'Failed to set zone owner')
+end)
+
+lib.callback.register('gangs:adminDeleteZone', function(source, zoneKey)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    local ok = Gangs.DeleteZone(zoneKey)
+    if ok then
+        Bridge.Notify(source, Gangs.Locale('zone_deleted'), 'success')
+    end
+    return adminResult(source, ok, ok and nil or 'Zone not found')
+end)
+
+lib.callback.register('gangs:adminSetZoneCooldown', function(source, zoneKey, minutes)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    local ok, err = Gangs.AdminSetZoneCooldown(zoneKey, minutes)
+    if ok then
+        Bridge.Notify(source, Gangs.Locale('admin_cooldown_updated'), 'success')
+    end
+    return adminResult(source, ok, err)
+end)
+
+lib.callback.register('gangs:adminSetOrgCooldown', function(source, orgName, minutes)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    local ok, err = Gangs.AdminSetOrgCooldown(orgName, minutes)
+    if ok then
+        Bridge.Notify(source, Gangs.Locale('admin_cooldown_updated'), 'success')
+    end
+    return adminResult(source, ok, err)
+end)
+
+lib.callback.register('gangs:adminClearAllCooldowns', function(source)
+    if not Bridge.IsAdmin(source) then
+        return { success = false, error = Gangs.Locale('no_permission') }
+    end
+    Gangs.AdminClearAllZoneCooldowns()
+    Gangs.AdminClearAllOrgCooldowns()
+    Bridge.Notify(source, Gangs.Locale('admin_cooldowns_cleared'), 'success')
+    return adminResult(source, true)
 end)

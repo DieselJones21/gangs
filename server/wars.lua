@@ -198,6 +198,40 @@ local function giveWarRewards(source)
     end
 end
 
+--- Cancel an active war without changing ownership, rewards, or cooldowns.
+function Gangs.CancelWar(zoneKey)
+    local war = Gangs.Wars[zoneKey]
+    local zone = Gangs.Zones[zoneKey]
+    if not war then return false, 'No active war on that zone' end
+
+    Gangs.Wars[zoneKey] = nil
+    TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
+    TriggerClientEvent('gangs:client:syncZones', -1, Gangs.GetClientZones())
+
+    local title = zone and zone.title or zoneKey
+    local message = Gangs.Locale('war_cancelled', title)
+    if war.attacker then Gangs.BroadcastOrg(war.attacker, 'gangs:client:notify', message, 'inform') end
+    if war.defender then Gangs.BroadcastOrg(war.defender, 'gangs:client:notify', message, 'inform') end
+    return true
+end
+
+function Gangs.AdminSetOrgCooldown(orgName, minutes)
+    orgName = tostring(orgName or '')
+    if not Gangs.Orgs[orgName] then return false, 'Organization not found' end
+    minutes = tonumber(minutes) or 0
+    if minutes <= 0 then
+        Gangs.OrgCooldowns[orgName] = nil
+    else
+        Gangs.OrgCooldowns[orgName] = os.time() + math.floor(minutes * 60)
+    end
+    return true
+end
+
+function Gangs.AdminClearAllOrgCooldowns()
+    Gangs.OrgCooldowns = {}
+    return true
+end
+
 function Gangs.EndWar(zoneKey)
     local war = Gangs.Wars[zoneKey]
     local zone = Gangs.Zones[zoneKey]

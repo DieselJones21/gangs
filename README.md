@@ -8,7 +8,7 @@ Original FiveM territory / organization resource with Core Gangs–style gamepla
 - Bounties, criminal stats, titles, leaderboards
 - Zone storages, NPC guards, continental shop
 - Freecam PolyZone editor for admins (`/zoneeditor`) — fly into the sky and click ground points
-- Rebel Roleplay Criminal Tablet NUI (`F9` / `/criminal`) with black/red/blue theme and city zone map
+- Rebel Roleplay Criminal Tablet NUI (`F9` / `/criminal`) with black/red/blue theme, city zone map, and admin tools
 - Org logos (image URL) shown on war walls
 - In-zone war HUD with gang names + colored score bars (no timer)
 - Checkerboard war walls tinted to the leading org color
@@ -61,6 +61,8 @@ Admins: `/zoneeditor`
 
 ## Admin commands
 
+Admins also get an **Admin** tab in the Criminal Tablet for org setup/delete, zone ownership, stopping wars, and cooldown management.
+
 | Command | Description |
 | --- | --- |
 | `/zoneeditor` | Freecam PolyZone editor (fly in sky, click points) |
@@ -68,6 +70,7 @@ Admins: `/zoneeditor`
 | `/criminal setzone <key> <org>` | Assign zone ownership |
 | `/criminal resetzone <key>` | Clear zone ownership |
 | `/criminal startwar <key>` | Force-start a war |
+| `/criminal stopwar <key>` | Cancel an active war (no ownership change) |
 | `/criminal deletezone <key>` | Delete a zone |
 | `/criminal givecurrency [id] [amount]` | Give currency item |
 
