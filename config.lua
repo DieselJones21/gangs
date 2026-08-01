@@ -123,7 +123,12 @@ Config.BountyPriceSetOnContinentalKill = 200
 Config.BaseZoneWarTime = 10 -- minutes
 Config.PriceToStartWar = 0
 Config.OwnedZoneAdvantage = 500
-Config.WarScoreIncrease = 20 -- points/sec/player in zone
+Config.WarScoreIncrease = 20 -- points/sec per alive member in the zone
+Config.WarScoreDeathPenalty = 20 -- points/sec lost per dead member in the zone
+Config.WarScoreFloor = 0 -- scores cannot drop below this
+-- Any org can enter an active war zone and rack up their own score; highest wins
+Config.AllowThirdPartyContest = true
+Config.WarHudMaxTeams = 4 -- max org rows on the in-zone war HUD
 Config.OrganizationCooldown = 5 -- minutes
 Config.ZoneCooldown = 10 -- minutes
 Config.CurrencyAward = 200

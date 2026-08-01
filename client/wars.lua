@@ -67,6 +67,15 @@ local function buildWarHudList(insideKey)
                 defenderLogo = war.defenderLogo or '',
                 attackerScore = tonumber(war.attackerScore) or 0,
                 defenderScore = tonumber(war.defenderScore) or 0,
+                primaryLabel = war.primaryLabel,
+                primaryColor = war.primaryColor,
+                primaryLogo = war.primaryLogo,
+                primaryScore = tonumber(war.primaryScore),
+                secondaryLabel = war.secondaryLabel,
+                secondaryColor = war.secondaryColor,
+                secondaryLogo = war.secondaryLogo,
+                secondaryScore = tonumber(war.secondaryScore),
+                teams = war.teams or {},
                 duration = duration,
                 remaining = remaining,
             }
@@ -81,12 +90,20 @@ local function signatureFor(list, insideKey)
         return ('empty:%s'):format(tostring(insideKey))
     end
     local w = list[1]
-    return ('%s:%s:%s:%s:%s'):format(
+    local teamSig = ''
+    if type(w.teams) == 'table' then
+        for i = 1, #w.teams do
+            local t = w.teams[i]
+            teamSig = teamSig .. tostring(t and t.name) .. '=' .. tostring(t and t.score) .. ';'
+        end
+    end
+    return ('%s:%s:%s:%s:%s:%s'):format(
         tostring(insideKey),
         tostring(w.zoneKey),
         tostring(w.attackerScore),
         tostring(w.defenderScore),
-        tostring(w.remaining)
+        tostring(w.remaining),
+        teamSig
     )
 end
 
