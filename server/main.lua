@@ -362,6 +362,7 @@ AddEventHandler('onResourceStart', function(res)
     loadBounties()
     loadStats()
     TriggerClientEvent('gangs:client:syncZones', -1, Gangs.GetClientZones())
+    TriggerClientEvent('gangs:client:syncWars', -1, Gangs.GetClientWars())
     Gangs.StartZoneWorkers()
     Gangs.StartWarTicker()
     print(('[^2gangs^7] Loaded %s orgs, %s zones'):format(

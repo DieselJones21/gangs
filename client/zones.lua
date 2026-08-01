@@ -41,22 +41,24 @@ local function drawQuad(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, r, g, b,
     DrawPoly(ax, ay, az, dx, dy, dz, cx, cy, cz, r, g, b, a)
 end
 
--- Translucent checkerboard wall tinted to the leading org color
+-- Cleaner translucent diagonal hazard wall tinted to leading org color
 local function drawOrgCheckerWall(ax, ay, az1, az2, bx, by, bz1, bz2, hex, logoUrl)
     local dx = bx - ax
     local dy = by - ay
     local length = math.sqrt(dx * dx + dy * dy)
     if length < 0.05 then return end
 
-    local cell = Config.WarWallCellSize or 1.6
-    local steps = math.max(2, math.min(24, math.ceil(length / cell)))
-    local heightSteps = math.max(4, math.min(14, math.ceil(math.abs(az2 - az1) / cell)))
-    local alpha = Config.WarWallAlpha or 120
+    local cell = Config.WarWallCellSize or 1.25
+    local steps = math.max(3, math.min(30, math.ceil(length / cell)))
+    local heightSteps = math.max(6, math.min(18, math.ceil(math.abs(az2 - az1) / cell)))
+    local alpha = Config.WarWallAlpha or 95
 
     local baseR, baseG, baseB = hexToRgb(hex)
-    local darkR, darkG, darkB = shade(baseR, baseG, baseB, 0.18)
-    local midR, midG, midB = shade(baseR, baseG, baseB, 0.72)
-    local lightR, lightG, lightB = math.min(255, baseR + 40), math.min(255, baseG + 40), math.min(255, baseB + 40)
+    local darkR, darkG, darkB = shade(baseR, baseG, baseB, 0.12)
+    local midR, midG, midB = shade(baseR, baseG, baseB, 0.78)
+    local glowR = math.min(255, baseR + 55)
+    local glowG = math.min(255, baseG + 35)
+    local glowB = math.min(255, baseB + 35)
 
     for i = 0, steps - 1 do
         local t0 = i / steps
@@ -72,25 +74,30 @@ local function drawOrgCheckerWall(ax, ay, az1, az2, bx, by, bz1, bz2, hex, logoU
             local z0 = az1 + (az2 - az1) * v0
             local z1 = az1 + (az2 - az1) * v1
 
-            local tone = (i + j) % 3
-            local r, g, b, a
-            if tone == 0 then
-                r, g, b, a = darkR, darkG, darkB, math.floor(alpha * 1.15)
-            elseif tone == 1 then
-                r, g, b, a = midR, midG, midB, alpha
+            -- Diagonal bands
+            local band = (i + j) % 2
+            local fade = 1.0 - math.abs((v0 + v1) * 0.5 - 0.5) * 0.35
+            local a = math.floor(alpha * fade)
+            if band == 0 then
+                drawQuad(x0, y0, z0, x1, y1, z0, x1, y1, z1, x0, y0, z1, midR, midG, midB, a)
             else
-                r, g, b, a = lightR, lightG, lightB, math.floor(alpha * 0.95)
+                drawQuad(x0, y0, z0, x1, y1, z0, x1, y1, z1, x0, y0, z1, darkR, darkG, darkB, math.floor(a * 1.15))
             end
-
-            drawQuad(x0, y0, z0, x1, y1, z0, x1, y1, z1, x0, y0, z1, r, g, b, a)
         end
     end
 
-    DrawLine(ax, ay, az1, bx, by, bz1, baseR, baseG, baseB, 200)
-    DrawLine(ax, ay, az2, bx, by, bz2, baseR, baseG, baseB, 160)
+    -- Soft glass sheen strip near the top
+    local sheenZ0 = az1 + (az2 - az1) * 0.72
+    local sheenZ1 = az1 + (az2 - az1) * 0.86
+    drawQuad(ax, ay, sheenZ0, bx, by, sheenZ0, bx, by, sheenZ1, ax, ay, sheenZ1, glowR, glowG, glowB, 35)
 
-    if logoUrl and length >= (Config.WarWallLogoSize or 2.8) then
-        Gangs.DrawLogoOnWall(logoUrl, ax, ay, az1, bx, by, az2, Config.WarWallLogoSize or 2.8)
+    DrawLine(ax, ay, az1, bx, by, bz1, glowR, glowG, glowB, 180)
+    DrawLine(ax, ay, az2, bx, by, bz2, baseR, baseG, baseB, 140)
+    DrawLine(ax, ay, az1, ax, ay, az2, 255, 255, 255, 35)
+    DrawLine(bx, by, bz1, bx, by, bz2, 255, 255, 255, 35)
+
+    if logoUrl and length >= ((Config.WarWallLogoSize or 2.6) * 0.9) then
+        Gangs.DrawLogoOnWall(logoUrl, ax, ay, az1, bx, by, az2, Config.WarWallLogoSize or 2.6, hex)
     end
 end
 

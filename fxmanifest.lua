@@ -31,6 +31,7 @@ files {
     'web/index.html',
     'web/style.css',
     'web/app.js',
+    'web/logo.html',
 }
 
 dependencies {

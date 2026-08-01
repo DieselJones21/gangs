@@ -1,14 +1,5 @@
 local lastHudSignature = nil
 
-local function nowUnix()
-    -- os.time is unreliable/unavailable on FiveM client
-    if type(GetCloudTimeAsInt) == 'function' then
-        local t = GetCloudTimeAsInt()
-        if t and t > 0 then return t end
-    end
-    return GlobalState and GlobalState.gangsUnix or nil
-end
-
 local function buildWarHudList()
     local list = {}
     local onlyInside = Config.WarHudOnlyInsideZone == true
@@ -19,16 +10,19 @@ local function buildWarHudList()
         if war.defenderLogo then pcall(Gangs.EnsureLogoTexture, war.defenderLogo) end
         if war.leadingLogo then pcall(Gangs.EnsureLogoTexture, war.leadingLogo) end
 
-        -- If inside-only mode is on, still fall back to showing all wars when
-        -- zone detection hasn't locked in yet (prevents a blank HUD).
         local include = true
         if onlyInside and inside then
             include = (inside == key)
-        elseif onlyInside and not inside then
-            include = true -- temporary fallback until InsideZone is known
         end
 
         if include then
+            local duration = tonumber(war.duration) or math.floor((Config.BaseZoneWarTime or 10) * 60)
+            local remaining = tonumber(war.remaining)
+            if remaining == nil and war.endsAt and GlobalState and GlobalState.gangsUnix then
+                remaining = math.max(0, tonumber(war.endsAt) - tonumber(GlobalState.gangsUnix))
+            end
+            remaining = math.max(0, math.floor(tonumber(remaining) or duration))
+
             list[#list + 1] = {
                 zoneKey = key,
                 zoneId = war.zoneId,
@@ -41,9 +35,8 @@ local function buildWarHudList()
                 defenderLogo = war.defenderLogo or '',
                 attackerScore = tonumber(war.attackerScore) or 0,
                 defenderScore = tonumber(war.defenderScore) or 0,
-                startedAt = war.startedAt,
-                endsAt = war.endsAt,
-                duration = war.duration or math.floor((Config.BaseZoneWarTime or 10) * 60),
+                duration = duration,
+                remaining = remaining,
             }
         end
     end
@@ -63,7 +56,7 @@ local function signatureFor(list)
             tostring(w.zoneKey),
             tostring(w.attackerScore),
             tostring(w.defenderScore),
-            tostring(w.endsAt)
+            tostring(w.remaining)
         )
     end
     return table.concat(parts, ';')
@@ -81,7 +74,6 @@ local function pushWarHud(force)
         SendNUIMessage({
             action = 'warHud',
             wars = list,
-            serverTime = nowUnix(),
             insideZone = Gangs.InsideZone,
         })
     end)
@@ -95,7 +87,6 @@ AddEventHandler('gangs:client:warsUpdated', function()
     pushWarHud(true)
 end)
 
--- Keep InsideZone fresher during wars so the HUD can gate correctly
 CreateThread(function()
     while true do
         if Gangs.Wars and next(Gangs.Wars) then
@@ -104,7 +95,6 @@ CreateThread(function()
             local found
             for key, zone in pairs(Gangs.Zones or {}) do
                 if Gangs.Wars[key] and Gangs.PointInPolygon(coords.x, coords.y, zone.points or {}) then
-                    -- Lenient Z during wars so the HUD doesn't disappear
                     found = key
                     break
                 end
@@ -113,7 +103,7 @@ CreateThread(function()
                 Gangs.InsideZone = found
             end
             pushWarHud(false)
-            Wait(400)
+            Wait(500)
         else
             if lastHudSignature ~= nil and lastHudSignature ~= '' then
                 lastHudSignature = ''

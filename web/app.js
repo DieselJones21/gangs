@@ -352,7 +352,6 @@ function zoneDisplayId(war) {
 }
 
 let warHudState = {};
-let warHudClockOffset = 0;
 let warHudTimerHandle = null;
 
 function teamLogoHtml(label, color, logo) {
@@ -362,9 +361,8 @@ function teamLogoHtml(label, color, logo) {
   return `<div class="war-logo" style="--team-color:${esc(color)}">${esc(initials(label))}</div>`;
 }
 
-function formatTimer(endsAt) {
-  const now = Math.floor(Date.now() / 1000) + warHudClockOffset;
-  const remaining = Math.max(0, Number(endsAt || 0) - now);
+function formatRemaining(totalSeconds) {
+  const remaining = Math.max(0, Math.floor(Number(totalSeconds) || 0));
   const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
   const secs = String(remaining % 60).padStart(2, '0');
   return `${mins}:${secs}`;
@@ -380,7 +378,7 @@ function warStructureKey(war) {
     war.defenderColor,
     war.attackerLogo || '',
     war.defenderLogo || '',
-    war.endsAt,
+    war.duration || 600,
   ].join('~');
 }
 
@@ -392,6 +390,7 @@ function ensureWarCard(war) {
   });
   if (card) return card;
 
+  const durationMin = Math.max(1, Math.round((Number(war.duration) || 600) / 60));
   card = document.createElement('article');
   card.className = 'war-card war-card-simple is-new';
   card.dataset.zone = String(war.zoneKey);
@@ -399,16 +398,19 @@ function ensureWarCard(war) {
   card.innerHTML = `
     <div class="war-simple-head">
       <div>
-        <span>ZONE WAR · 10 MIN</span>
+        <span class="war-kicker">ZONE WAR · ${durationMin} MIN</span>
         <strong class="war-title">${esc(war.zoneTitle || zoneDisplayId(war))}</strong>
       </div>
-      <div class="war-timer" data-role="timer">00:00</div>
+      <div class="war-timer" data-role="timer">
+        <span class="war-timer-dot"></span>
+        <span data-role="timer-text">10:00</span>
+      </div>
     </div>
     <div class="war-team" data-side="atk" style="--team-color:${esc(war.attackerColor || '#e11d2e')}">
       ${teamLogoHtml(war.attackerLabel, war.attackerColor || '#e11d2e', war.attackerLogo)}
       <div class="war-team-copy">
         <strong class="war-name">${esc(war.attackerLabel || 'Attacker')}</strong>
-        <div class="war-bar"><i data-role="bar" style="width:0%"></i></div>
+        <div class="war-bar"><i data-role="bar"></i></div>
       </div>
       <div class="war-score" data-role="score">0</div>
     </div>
@@ -416,7 +418,7 @@ function ensureWarCard(war) {
       ${teamLogoHtml(war.defenderLabel, war.defenderColor || '#2563eb', war.defenderLogo)}
       <div class="war-team-copy">
         <strong class="war-name">${esc(war.defenderLabel || 'Unowned')}</strong>
-        <div class="war-bar"><i data-role="bar" style="width:0%"></i></div>
+        <div class="war-bar"><i data-role="bar"></i></div>
       </div>
       <div class="war-score" data-role="score">0</div>
     </div>
@@ -426,10 +428,18 @@ function ensureWarCard(war) {
   return card;
 }
 
+function syncLocalDeadline(card, remaining) {
+  const secs = Math.max(0, Math.floor(Number(remaining) || 0));
+  card.dataset.endsAtMs = String(Date.now() + secs * 1000);
+}
+
 function patchWarCard(card, war) {
   const structure = warStructureKey(war);
   if (card.dataset.structure !== structure) {
     card.dataset.structure = structure;
+    const durationMin = Math.max(1, Math.round((Number(war.duration) || 600) / 60));
+    const kicker = card.querySelector('.war-kicker');
+    if (kicker) kicker.textContent = `ZONE WAR · ${durationMin} MIN`;
     card.querySelector('.war-title').textContent = war.zoneTitle || zoneDisplayId(war);
     card.querySelector('[data-side="atk"] .war-name').textContent = war.attackerLabel || 'Attacker';
     card.querySelector('[data-side="def"] .war-name').textContent = war.defenderLabel || 'Unowned';
@@ -442,38 +452,50 @@ function patchWarCard(card, war) {
     if (defLogo) defLogo.outerHTML = teamLogoHtml(war.defenderLabel, war.defenderColor || '#2563eb', war.defenderLogo);
   }
 
+  // Refresh local countdown from authoritative server remaining
+  syncLocalDeadline(card, war.remaining != null ? war.remaining : (war.duration || 600));
+
   const atk = Number(war.attackerScore || 0);
   const def = Number(war.defenderScore || 0);
   const total = Math.max(1, atk + def);
-  const atkFill = (atk / total) * 100;
-  const defFill = (def / total) * 100;
+  const atkFill = Math.max(atk > 0 ? 4 : 0, (atk / total) * 100);
+  const defFill = Math.max(def > 0 ? 4 : 0, (def / total) * 100);
+
+  const atkRow = card.querySelector('[data-side="atk"]');
+  const defRow = card.querySelector('[data-side="def"]');
+  if (atkRow) atkRow.classList.toggle('is-leading', atk >= def && atk > 0);
+  if (defRow) defRow.classList.toggle('is-leading', def > atk);
 
   const atkScore = card.querySelector('[data-side="atk"] [data-role="score"]');
   const defScore = card.querySelector('[data-side="def"] [data-role="score"]');
   const atkBar = card.querySelector('[data-side="atk"] [data-role="bar"]');
   const defBar = card.querySelector('[data-side="def"] [data-role="bar"]');
-  const timer = card.querySelector('[data-role="timer"]');
+  const timer = card.querySelector('[data-role="timer-text"]');
 
   if (atkScore) atkScore.textContent = formatScore(atk);
   if (defScore) defScore.textContent = formatScore(def);
   if (atkBar) atkBar.style.width = `${atkFill.toFixed(1)}%`;
   if (defBar) defBar.style.width = `${defFill.toFixed(1)}%`;
-  if (timer) timer.textContent = formatTimer(war.endsAt);
-
-  card.dataset.endsAt = String(war.endsAt || 0);
+  if (timer) {
+    const left = Math.max(0, Math.ceil((Number(card.dataset.endsAtMs) - Date.now()) / 1000));
+    timer.textContent = formatRemaining(left);
+  }
 }
 
 function tickWarTimers() {
   if (!warHudEl) return;
-  warHudEl.querySelectorAll('.war-card[data-ends-at]').forEach((card) => {
-    const timer = card.querySelector('[data-role="timer"]');
-    if (timer) timer.textContent = formatTimer(card.dataset.endsAt);
+  warHudEl.querySelectorAll('.war-card').forEach((card) => {
+    const timer = card.querySelector('[data-role="timer-text"]');
+    if (!timer || !card.dataset.endsAtMs) return;
+    const left = Math.max(0, Math.ceil((Number(card.dataset.endsAtMs) - Date.now()) / 1000));
+    timer.textContent = formatRemaining(left);
+    card.classList.toggle('is-ending', left <= 30);
   });
 }
 
 function startWarTimerLoop() {
   if (warHudTimerHandle) return;
-  warHudTimerHandle = setInterval(tickWarTimers, 250);
+  warHudTimerHandle = setInterval(tickWarTimers, 200);
 }
 
 function stopWarTimerLoop() {
@@ -482,13 +504,9 @@ function stopWarTimerLoop() {
   warHudTimerHandle = null;
 }
 
-function renderWarHud(wars = [], serverTime) {
+function renderWarHud(wars = []) {
   try {
     if (!warHudEl) return;
-
-    if (typeof serverTime === 'number' && Number.isFinite(serverTime) && serverTime > 0) {
-      warHudClockOffset = serverTime - Math.floor(Date.now() / 1000);
-    }
 
     if (!Array.isArray(wars) || !wars.length) {
       warHudState = {};
@@ -591,7 +609,7 @@ window.addEventListener('message', (event) => {
     app.classList.remove('hidden');
     renderAll();
   } else if (msg.action === 'warHud') {
-    renderWarHud(msg.wars || [], msg.serverTime);
+    renderWarHud(msg.wars || []);
   }
 });
 
