@@ -518,6 +518,7 @@ lib.callback.register('gangs:createOrganization', function(source, label, color)
                 wars = {},
                 bounties = {},
                 leaderboard = {},
+                orgLeaderboard = {},
                 config = {
                     canCreate = Config.CanCreateOrganizations,
                     createPrice = Config.OrganizationCreationPrice,
