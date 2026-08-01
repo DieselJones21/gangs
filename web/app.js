@@ -768,6 +768,245 @@ function renderBoard() {
     : `<div class="empty">No criminal stats yet.</div>`;
 }
 
+function syncServerClock() {
+  const serverTime = Number(state?.admin?.serverTime || 0);
+  if (serverTime > 0) {
+    clockOffset = serverTime * 1000 - Date.now();
+  }
+}
+
+function nowUnix() {
+  return Math.floor((Date.now() + clockOffset) / 1000);
+}
+
+function formatCooldownUntil(until) {
+  const end = Number(until || 0);
+  if (!end) return 'None';
+  const remaining = end - nowUnix();
+  if (remaining <= 0) return 'None';
+  return formatRemaining(remaining);
+}
+
+function orgOptionsHtml(selected) {
+  const orgs = state.admin?.orgs || [];
+  const opts = [`<option value="">Unowned</option>`]
+    .concat(orgs.map((o) => {
+      const sel = selected && selected === o.name ? ' selected' : '';
+      return `<option value="${esc(o.name)}"${sel}>${esc(o.label)}</option>`;
+    }));
+  return opts.join('');
+}
+
+function renderAdmin() {
+  const panel = document.getElementById('adminPanel');
+  const navAdmin = document.querySelector('.nav-btn[data-tab="admin"]');
+  const isAdmin = Boolean(state?.player?.isAdmin && state?.admin);
+  if (navAdmin) navAdmin.classList.toggle('hidden', !isAdmin);
+  if (!panel) return;
+
+  if (!isAdmin) {
+    panel.innerHTML = `<div class="empty">Admin access required.</div>`;
+    return;
+  }
+
+  syncServerClock();
+  const orgs = state.admin.orgs || [];
+  const zones = state.zones || [];
+  const wars = state.wars || [];
+  const defaultZoneCd = state.admin.defaultZoneCooldown || 10;
+  const defaultOrgCd = state.admin.defaultOrgCooldown || 5;
+
+  panel.innerHTML = `
+    <div class="admin-toolbar">
+      <button class="soft" id="adminOpenEditor">Open Zone Editor</button>
+      <button class="danger" id="adminClearCooldowns">Clear All Cooldowns</button>
+    </div>
+
+    <div class="admin-grid">
+      <section class="panel admin-block">
+        <h3>Setup Organization</h3>
+        <p class="muted">Create an org for an online player (they become the leader).</p>
+        <div class="form-panel">
+          <label>Organization Name</label>
+          <input id="adminOrgName" type="text" maxlength="32" placeholder="Los Santos Cartel" />
+          <label>Color</label>
+          <input id="adminOrgColor" type="color" value="#c43c2f" />
+          <label>Owner Server ID</label>
+          <input id="adminOrgOwner" type="number" min="1" placeholder="12" />
+          <p id="adminOrgError" class="form-error"></p>
+          <button class="primary" id="adminCreateOrgBtn">Create Organization</button>
+        </div>
+      </section>
+
+      <section class="panel admin-block">
+        <h3>Active Wars</h3>
+        <p class="muted">Stop a zone war immediately without changing ownership.</p>
+        <div class="list admin-list">
+          ${wars.length ? wars.map((w) => `
+            <div class="row">
+              <div>
+                <h3>${esc(w.zoneTitle)}</h3>
+                <p>${esc(w.attackerLabel)} vs ${esc(w.defenderLabel || 'Unowned')} · ${esc(formatRemaining(w.remaining))}</p>
+              </div>
+              <div class="actions">
+                <button class="danger" data-stop-war="${esc(w.zoneKey)}">Stop War</button>
+              </div>
+            </div>
+          `).join('') : `<div class="empty">No active wars.</div>`}
+        </div>
+      </section>
+    </div>
+
+    <section class="panel admin-block">
+      <h3>Organizations</h3>
+      <p class="muted">Delete crews or manage their war cooldowns.</p>
+      <div class="list admin-list">
+        ${orgs.length ? orgs.map((o) => `
+          <div class="row admin-row">
+            <div>
+              <h3><span class="zone-owner-dot" style="background:${esc(o.color)}"></span>${esc(o.label)}</h3>
+              <p>${esc(o.memberCount)} members · Power ${esc(o.power)} · CD ${esc(formatCooldownUntil(o.cooldownUntil))}</p>
+            </div>
+            <div class="actions">
+              <button class="soft" data-clear-org-cd="${esc(o.name)}">Clear CD</button>
+              <button class="soft" data-set-org-cd="${esc(o.name)}">Set ${esc(defaultOrgCd)}m CD</button>
+              <button class="danger" data-delete-org="${esc(o.name)}">Delete</button>
+            </div>
+          </div>
+        `).join('') : `<div class="empty">No organizations yet.</div>`}
+      </div>
+    </section>
+
+    <section class="panel admin-block">
+      <h3>Zones</h3>
+      <p class="muted">Assign ownership, stop wars, clear cooldowns, or delete zones.</p>
+      <div class="list admin-list">
+        ${zones.length ? zones.map((z) => `
+          <div class="row admin-row">
+            <div class="admin-zone-meta">
+              <h3>${esc(z.title)} <span class="badge">${esc(z.type)}</span>${z.inWar ? ' <span class="badge">WAR</span>' : ''}</h3>
+              <p>Owner: ${esc(zoneOwnerLabel(z))} · CD ${esc(formatCooldownUntil(z.cooldownUntil))}</p>
+              <label class="admin-inline-label">Set owner</label>
+              <select data-owner-select="${esc(z.key)}">${orgOptionsHtml(z.owner || '')}</select>
+            </div>
+            <div class="actions">
+              <button class="soft" data-apply-owner="${esc(z.key)}">Apply Owner</button>
+              <button class="soft" data-clear-zone-cd="${esc(z.key)}">Clear CD</button>
+              <button class="soft" data-set-zone-cd="${esc(z.key)}">Set ${esc(defaultZoneCd)}m CD</button>
+              ${z.inWar ? `<button class="danger" data-stop-war="${esc(z.key)}">Stop War</button>` : ''}
+              <button class="danger" data-delete-zone="${esc(z.key)}">Delete Zone</button>
+            </div>
+          </div>
+        `).join('') : `<div class="empty">No zones configured. Use Zone Editor.</div>`}
+      </div>
+    </section>
+  `;
+
+  const createBtn = document.getElementById('adminCreateOrgBtn');
+  if (createBtn) {
+    createBtn.onclick = async () => {
+      const errEl = document.getElementById('adminOrgError');
+      const label = document.getElementById('adminOrgName')?.value?.trim();
+      const color = document.getElementById('adminOrgColor')?.value;
+      const ownerSource = Number(document.getElementById('adminOrgOwner')?.value);
+      if (!label || label.length < 2) {
+        if (errEl) errEl.textContent = 'Enter a valid organization name.';
+        return;
+      }
+      if (!ownerSource) {
+        if (errEl) errEl.textContent = 'Enter the owner player server ID.';
+        return;
+      }
+      if (errEl) errEl.textContent = '';
+      const result = await runAction(() => nui('adminCreateOrg', { label, color, ownerSource }));
+      if (applyResult(result, 'Failed to create organization')) {
+        showToast('Organization created', 'success');
+      } else if (errEl && result?.error) {
+        errEl.textContent = result.error;
+      }
+    };
+  }
+
+  const editorBtn = document.getElementById('adminOpenEditor');
+  if (editorBtn) {
+    editorBtn.onclick = async () => {
+      app.classList.add('hidden');
+      document.body.style.background = 'transparent';
+      await nui('openZoneEditor');
+    };
+  }
+
+  const clearAllBtn = document.getElementById('adminClearCooldowns');
+  if (clearAllBtn) {
+    clearAllBtn.onclick = async () => {
+      const result = await runAction(() => nui('adminClearAllCooldowns'));
+      if (applyResult(result, 'Failed to clear cooldowns')) {
+        showToast('All cooldowns cleared', 'success');
+      }
+    };
+  }
+
+  panel.querySelectorAll('[data-delete-org]').forEach((btn) => {
+    btn.onclick = async () => {
+      const orgName = btn.dataset.deleteOrg;
+      const result = await runAction(() => nui('adminDeleteOrg', { orgName }));
+      if (applyResult(result, 'Delete failed')) showToast('Organization deleted', 'success');
+    };
+  });
+
+  panel.querySelectorAll('[data-clear-org-cd]').forEach((btn) => {
+    btn.onclick = async () => {
+      const result = await runAction(() => nui('adminSetOrgCooldown', { orgName: btn.dataset.clearOrgCd, minutes: 0 }));
+      if (applyResult(result, 'Cooldown update failed')) showToast('Org cooldown cleared', 'success');
+    };
+  });
+
+  panel.querySelectorAll('[data-set-org-cd]').forEach((btn) => {
+    btn.onclick = async () => {
+      const result = await runAction(() => nui('adminSetOrgCooldown', { orgName: btn.dataset.setOrgCd, minutes: defaultOrgCd }));
+      if (applyResult(result, 'Cooldown update failed')) showToast('Org cooldown set', 'success');
+    };
+  });
+
+  panel.querySelectorAll('[data-apply-owner]').forEach((btn) => {
+    btn.onclick = async () => {
+      const zoneKey = btn.dataset.applyOwner;
+      const select = panel.querySelector(`select[data-owner-select="${String(zoneKey).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`);
+      const orgName = select ? select.value : '';
+      const result = await runAction(() => nui('adminSetZoneOwner', { zoneKey, orgName }));
+      if (applyResult(result, 'Failed to set owner')) showToast('Zone owner updated', 'success');
+    };
+  });
+
+  panel.querySelectorAll('[data-clear-zone-cd]').forEach((btn) => {
+    btn.onclick = async () => {
+      const result = await runAction(() => nui('adminSetZoneCooldown', { zoneKey: btn.dataset.clearZoneCd, minutes: 0 }));
+      if (applyResult(result, 'Cooldown update failed')) showToast('Zone cooldown cleared', 'success');
+    };
+  });
+
+  panel.querySelectorAll('[data-set-zone-cd]').forEach((btn) => {
+    btn.onclick = async () => {
+      const result = await runAction(() => nui('adminSetZoneCooldown', { zoneKey: btn.dataset.setZoneCd, minutes: defaultZoneCd }));
+      if (applyResult(result, 'Cooldown update failed')) showToast('Zone cooldown set', 'success');
+    };
+  });
+
+  panel.querySelectorAll('[data-stop-war]').forEach((btn) => {
+    btn.onclick = async () => {
+      const result = await runAction(() => nui('adminStopWar', { zoneKey: btn.dataset.stopWar }));
+      if (applyResult(result, 'Failed to stop war')) showToast('War stopped', 'success');
+    };
+  });
+
+  panel.querySelectorAll('[data-delete-zone]').forEach((btn) => {
+    btn.onclick = async () => {
+      const result = await runAction(() => nui('adminDeleteZone', { zoneKey: btn.dataset.deleteZone }));
+      if (applyResult(result, 'Failed to delete zone')) showToast('Zone deleted', 'success');
+    };
+  });
+}
+
 function renderAll() {
   if (!state) return;
   try {
@@ -778,6 +1017,7 @@ function renderAll() {
     renderWars();
     renderBounties();
     renderBoard();
+    renderAdmin();
   } catch (err) {
     console.error('gangs render error', err);
     showToast('UI render failed', 'error');

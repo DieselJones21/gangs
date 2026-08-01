@@ -592,6 +592,67 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* ===== Admin ===== */
+.admin-only.hidden { display: none !important; }
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.admin-block {
+  margin-bottom: 12px;
+}
+
+.admin-block h3 {
+  margin: 0 0 4px;
+  font-family: var(--display);
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+}
+
+.admin-block > .muted {
+  margin-bottom: 12px;
+}
+
+.admin-list {
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.admin-row {
+  align-items: flex-start;
+}
+
+.admin-zone-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-zone-meta select {
+  margin-top: 6px;
+  max-width: 280px;
+}
+
+.admin-inline-label {
+  display: block;
+  margin-top: 8px;
+}
+
+@media (max-width: 960px) {
+  .admin-grid { grid-template-columns: 1fr; }
+}
+
 /* ===== City Map ===== */
 .map-layout {
   display: grid;

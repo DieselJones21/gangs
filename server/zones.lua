@@ -147,6 +147,31 @@ function Gangs.DeleteZone(zoneKey)
     return true
 end
 
+function Gangs.AdminSetZoneCooldown(zoneKey, minutes)
+    local zone = Gangs.Zones[zoneKey]
+    if not zone then return false, 'Zone not found' end
+    minutes = tonumber(minutes) or 0
+    if minutes <= 0 then
+        zone.cooldown_until = 0
+    else
+        zone.cooldown_until = os.time() + math.floor(minutes * 60)
+    end
+    Gangs.SaveZone(zone)
+    TriggerClientEvent('gangs:client:syncZones', -1, Gangs.GetClientZones())
+    return true
+end
+
+function Gangs.AdminClearAllZoneCooldowns()
+    for _, zone in pairs(Gangs.Zones) do
+        if (zone.cooldown_until or 0) > 0 then
+            zone.cooldown_until = 0
+            Gangs.SaveZone(zone)
+        end
+    end
+    TriggerClientEvent('gangs:client:syncZones', -1, Gangs.GetClientZones())
+    return true
+end
+
 function Gangs.UpgradeProtection(source, zoneKey)
     local member = Gangs.GetMember(source)
     if not member then return false, Gangs.Locale('not_in_org') end

@@ -31,6 +31,7 @@
           <button class="nav-btn" data-tab="wars">Wars</button>
           <button class="nav-btn" data-tab="bounties">Bounties</button>
           <button class="nav-btn" data-tab="board">Leaderboard</button>
+          <button class="nav-btn admin-only hidden" data-tab="admin">Admin</button>
         </nav>
         <button id="closeBtn" class="ghost">Close</button>
       </aside>
@@ -143,6 +144,14 @@
             <p>Top criminals by wars won and body count.</p>
           </header>
           <div id="boardPanel" class="list"></div>
+        </section>
+
+        <section id="tab-admin" class="tab">
+          <header class="section-head">
+            <h2>Admin</h2>
+            <p>Set up organizations, stop wars, assign zones, and manage cooldowns.</p>
+          </header>
+          <div id="adminPanel"></div>
         </section>
       </main>
     </div>

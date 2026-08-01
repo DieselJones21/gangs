@@ -321,6 +321,35 @@ function Gangs.BuildPlayerPayload(source)
     end
 
     local leaderboard = Gangs.GetLeaderboard(10)
+    local isAdmin = Bridge.IsAdmin(source)
+    local now = os.time()
+
+    local adminPayload = nil
+    if isAdmin then
+        local orgs = {}
+        for name, org in pairs(Gangs.Orgs) do
+            local memberCount = 0
+            for _ in pairs(org.members or {}) do memberCount += 1 end
+            orgs[#orgs + 1] = {
+                name = name,
+                label = org.label,
+                color = org.color,
+                power = org.power or 0,
+                bank = org.bank or 0,
+                memberCount = memberCount,
+                owner = org.owner,
+                cooldownUntil = Gangs.OrgCooldowns[name] or 0,
+            }
+        end
+        table.sort(orgs, function(a, b) return (a.label or a.name) < (b.label or b.name) end)
+
+        adminPayload = {
+            orgs = orgs,
+            serverTime = now,
+            defaultZoneCooldown = Config.ZoneCooldown or 10,
+            defaultOrgCooldown = Config.OrganizationCooldown or 5,
+        }
+    end
 
     return {
         player = {
@@ -332,12 +361,14 @@ function Gangs.BuildPlayerPayload(source)
             roleName = role and role.name or nil,
             title = Gangs.GetTitleForStats(stats),
             stats = stats,
+            isAdmin = isAdmin,
         },
         organization = orgPayload,
         zones = zones,
         wars = wars,
         bounties = bounties,
         leaderboard = leaderboard,
+        admin = adminPayload,
         config = {
             canCreate = Config.CanCreateOrganizations,
             createPrice = Config.OrganizationCreationPrice,
