@@ -21,11 +21,88 @@ local function clearBlips()
 end
 
 local function hexToRgb(hex)
-    hex = hex:gsub('#', '')
+    hex = tostring(hex or ''):gsub('#', '')
     if #hex < 6 then return 150, 150, 150 end
     return tonumber(hex:sub(1, 2), 16) or 150,
         tonumber(hex:sub(3, 4), 16) or 150,
         tonumber(hex:sub(5, 6), 16) or 150
+end
+
+local function wallColor(name)
+    local c = Config.WarWallColors and Config.WarWallColors[name]
+    if not c then
+        if name == 'red' then return 210, 24, 42 end
+        if name == 'blue' then return 28, 92, 220 end
+        return 8, 8, 10
+    end
+    return c[1] or 8, c[2] or 8, c[3] or 10
+end
+
+local function drawTexturedQuad(ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, r, g, b, a)
+    -- two triangles: A-B-C and A-C-D
+    DrawPoly(ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a)
+    DrawPoly(ax, ay, az, cx, cy, cz, dx, dy, dz, r, g, b, a)
+    -- reverse winding so both sides are visible
+    DrawPoly(ax, ay, az, cx, cy, cz, bx, by, bz, r, g, b, a)
+    DrawPoly(ax, ay, az, dx, dy, dz, cx, cy, cz, r, g, b, a)
+end
+
+local function drawStripedWall(ax, ay, az1, az2, bx, by, bz1, bz2)
+    local dx = bx - ax
+    local dy = by - ay
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length < 0.05 then return end
+
+    local stripe = Config.WarWallStripeWidth or 1.35
+    -- Keep segment counts bounded for FPS while preserving the hazard look
+    local steps = math.max(3, math.min(28, math.ceil(length / stripe)))
+    local heightSteps = math.max(6, math.min(18, math.ceil(math.abs(az2 - az1) / (stripe * 0.85))))
+
+    local redR, redG, redB = wallColor('red')
+    local blueR, blueG, blueB = wallColor('blue')
+    local blackR, blackG, blackB = wallColor('black')
+
+    for i = 0, steps - 1 do
+        local t0 = i / steps
+        local t1 = (i + 1) / steps
+        local x0 = ax + dx * t0
+        local y0 = ay + dy * t0
+        local x1 = ax + dx * t1
+        local y1 = ay + dy * t1
+
+        for j = 0, heightSteps - 1 do
+            local v0 = j / heightSteps
+            local v1 = (j + 1) / heightSteps
+            local z0 = az1 + (az2 - az1) * v0
+            local z1 = az1 + (az2 - az1) * v1
+
+            -- Diagonal hazard bands across the wall face
+            local band = math.floor((i + j) / 1)
+            local tone = band % 3
+            local r, g, b, a
+            if tone == 0 then
+                r, g, b, a = redR, redG, redB, 145
+            elseif tone == 1 then
+                r, g, b, a = blackR, blackG, blackB, 170
+            else
+                r, g, b, a = blueR, blueG, blueB, 140
+            end
+
+            drawTexturedQuad(
+                x0, y0, z0,
+                x1, y1, z0,
+                x1, y1, z1,
+                x0, y0, z1,
+                r, g, b, a
+            )
+        end
+    end
+
+    -- Bright edge lines for silhouette
+    DrawLine(ax, ay, az1, bx, by, bz1, redR, redG, redB, 220)
+    DrawLine(ax, ay, az2, bx, by, bz2, blueR, blueG, blueB, 200)
+    DrawLine(ax, ay, az1, ax, ay, az2, 255, 255, 255, 70)
+    DrawLine(bx, by, bz1, bx, by, bz2, 255, 255, 255, 70)
 end
 
 local function setupZoneInteractions()
@@ -39,13 +116,11 @@ local function setupZoneInteractions()
             SetBlipSprite(blip, zone.type == 'continental' and 439 or 84)
             SetBlipScale(blip, 0.7)
             SetBlipAsShortRange(blip, true)
-            local r, g, b = hexToRgb(zone.color or '#888888')
             SetBlipColour(blip, 1)
             BeginTextCommandSetBlipName('STRING')
             AddTextComponentSubstringPlayerName(zone.title or key)
             EndTextCommandSetBlipName(blip)
             zoneBlips[key] = blip
-            r, g, b = r, g, b
         end
 
         for stashId, storage in pairs(zone.data and zone.data.Storages or {}) do
@@ -130,34 +205,41 @@ CreateThread(function()
     end
 end)
 
--- Draw zone outlines when nearby / in war
+-- Zone outlines + striped war walls
 CreateThread(function()
     while true do
         local sleep = 1000
         local ped = PlayerPedId()
         local coords = GetEntityCoords(ped)
+        local wallHeight = Config.WarWallHeight or 18.0
 
         for key, zone in pairs(Gangs.Zones) do
             local center = zone.center
             if center then
                 local dist = #(coords - vec3(center.x, center.y, center.z))
                 local inWar = Gangs.Wars[key] ~= nil
-                if dist < (inWar and Config.DistanceToDisplayWall or 80.0) then
+                local drawDist = inWar and (Config.DistanceToDisplayWall or 260.0) or 80.0
+
+                if dist < drawDist then
                     sleep = 0
                     local points = zone.points or {}
-                    local r, g, b = hexToRgb(zone.color or '#888888')
-                    if inWar then r, g, b = 220, 40, 40 end
-                    for i = 1, #points do
-                        local a = points[i]
-                        local c = points[i + 1] or points[1]
-                        local z1 = zone.minZ or (center.z - 1.0)
-                        local z2 = zone.maxZ or (center.z + 8.0)
-                        DrawLine(a.x, a.y, z1, c.x, c.y, z1, r, g, b, inWar and 200 or 120)
-                        DrawLine(a.x, a.y, z2, c.x, c.y, z2, r, g, b, inWar and 200 or 80)
-                        DrawLine(a.x, a.y, z1, a.x, a.y, z2, r, g, b, inWar and 160 or 60)
-                        if inWar and Config.DisplayWarWall then
-                            DrawPoly(a.x, a.y, z1, c.x, c.y, z1, c.x, c.y, z2, r, g, b, 40)
-                            DrawPoly(a.x, a.y, z1, c.x, c.y, z2, a.x, a.y, z2, r, g, b, 40)
+                    local z1 = zone.minZ or (center.z - 1.0)
+                    local z2 = inWar and (z1 + wallHeight) or (zone.maxZ or (center.z + 8.0))
+
+                    if inWar and Config.DisplayWarWall then
+                        for i = 1, #points do
+                            local a = points[i]
+                            local b = points[i + 1] or points[1]
+                            drawStripedWall(a.x, a.y, z1, z2, b.x, b.y, z1, z2)
+                        end
+                    else
+                        local r, g, b = hexToRgb(zone.color or '#3B82F6')
+                        for i = 1, #points do
+                            local a = points[i]
+                            local c = points[i + 1] or points[1]
+                            DrawLine(a.x, a.y, z1, c.x, c.y, z1, r, g, b, 120)
+                            DrawLine(a.x, a.y, z2, c.x, c.y, z2, r, g, b, 80)
+                            DrawLine(a.x, a.y, z1, a.x, a.y, z2, r, g, b, 60)
                         end
                     end
                 end

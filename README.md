@@ -8,7 +8,8 @@ Original FiveM territory / organization resource with Core Gangs–style gamepla
 - Bounties, criminal stats, titles, leaderboards
 - Zone storages, NPC guards, continental shop
 - In-game zone editor for admins (`/zoneeditor`)
-- NUI criminal menu (`F9` / `/criminal`)
+- Criminal Tablet NUI (`F9` / `/criminal`) with black/red/blue theme
+- Zone war HUD widget + striped war walls
 
 This is **not** a copy of C8RE Core Gangs code. It is an original implementation inspired by the same feature set.
 
@@ -43,7 +44,7 @@ ensure gangs
 
 | Command | Description |
 | --- | --- |
-| `/criminal` or `F9` | Open criminal network UI |
+| `/criminal` or `F9` | Open Criminal Tablet |
 | `/gangaccept` | Accept organization invite |
 
 ## Admin commands

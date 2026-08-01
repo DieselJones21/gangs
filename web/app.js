@@ -1,21 +1,66 @@
 const app = document.getElementById('app');
+const toastEl = document.getElementById('toast');
+const warHudEl = document.getElementById('warHud');
 let state = null;
+let toastTimer = null;
+let busy = false;
+let clockOffset = 0;
 
 const resourceName = typeof GetParentResourceName === 'function'
   ? GetParentResourceName()
   : 'gangs';
 
+function showToast(message, type = 'error') {
+  if (!toastEl) return;
+  toastEl.textContent = message || 'Something went wrong';
+  toastEl.classList.remove('hidden', 'error', 'success');
+  toastEl.classList.add(type === 'success' ? 'success' : 'error');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.add('hidden'), 3500);
+}
+
 async function nui(event, data = {}) {
-  const resp = await fetch(`https://${resourceName}/${event}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-    body: JSON.stringify(data),
-  });
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 15000) : null;
   try {
-    return await resp.json();
-  } catch (_) {
-    return null;
+    const resp = await fetch(`https://${resourceName}/${event}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify(data),
+      signal: controller ? controller.signal : undefined,
+    });
+    const text = await resp.text();
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch (_) {
+      return null;
+    }
+  } catch (err) {
+    return { success: false, error: err?.name === 'AbortError' ? 'Request timed out' : 'UI request failed' };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
+}
+
+async function runAction(fn) {
+  if (busy) return null;
+  busy = true;
+  try {
+    return await fn();
+  } finally {
+    busy = false;
+  }
+}
+
+function applyResult(result, fallbackError) {
+  if (result?.success && result.data) {
+    state = result.data;
+    renderAll();
+    return true;
+  }
+  showToast(result?.error || fallbackError || 'Request failed', 'error');
+  return false;
 }
 
 function setTab(tab) {
@@ -71,18 +116,40 @@ function renderOrg() {
         <input id="orgName" type="text" maxlength="32" placeholder="Los Santos Cartel" />
         <label>Color</label>
         <input id="orgColor" type="color" value="#c43c2f" />
+        <p id="orgFormError" class="form-error"></p>
         <button class="primary" id="createOrgBtn">Create Organization</button>
       </div>`;
-    document.getElementById('createOrgBtn').onclick = async () => {
+
+    const btn = document.getElementById('createOrgBtn');
+    const errorEl = document.getElementById('orgFormError');
+    btn.onclick = async () => {
       const label = document.getElementById('orgName').value.trim();
-      const color = document.getElementById('orgColor').value;
-      const result = await nui('createOrg', { label, color });
+      const color = document.getElementById('orgColor').value || '#c43c2f';
+      if (label.length < 2) {
+        errorEl.textContent = 'Enter a name with at least 2 characters.';
+        return;
+      }
+
+      errorEl.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      const result = await runAction(() => nui('createOrg', { label, color }));
+
+      btn.disabled = false;
+      btn.textContent = 'Create Organization';
+
       if (result?.success && result.data) {
         state = result.data;
+        showToast('Organization created', 'success');
         renderAll();
-      } else {
-        alert(result?.error || 'Failed to create organization');
+        setTab('org');
+        return;
       }
+
+      const message = result?.error || 'Failed to create organization';
+      errorEl.textContent = message;
+      showToast(message, 'error');
     };
     return;
   }
@@ -95,7 +162,7 @@ function renderOrg() {
       </div>
       <div class="actions">
         ${perms.canPromote ? `<select data-role="${esc(m.identifier)}">
-          ${(org.roles || []).map((r) => `<option value="${r.id}" ${r.id === m.roleId ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}
+          ${(org.roles || []).map((r) => `<option value="${r.id}" ${Number(r.id) === Number(m.roleId) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}
         </select>` : ''}
         ${perms.canKick ? `<button class="danger" data-kick="${esc(m.identifier)}">Kick</button>` : ''}
       </div>
@@ -105,7 +172,7 @@ function renderOrg() {
   panel.innerHTML = `
     <div class="panel" style="margin-bottom:12px;">
       <h3 style="margin:0 0 6px;font-family:Syne,sans-serif;color:${esc(org.color)}">${esc(org.label)}</h3>
-      <p class="muted">Bank: ${esc(org.bank)} · Members: ${esc(org.members.length)} · Power: ${esc(org.power)}</p>
+      <p class="muted">Bank: ${esc(org.bank)} · Members: ${esc((org.members || []).length)} · Power: ${esc(org.power)}</p>
       <div class="actions" style="margin-top:12px;justify-content:flex-start;">
         ${perms.canInvite ? `<button class="soft" id="inviteBtn">Invite Nearby</button>` : ''}
         ${perms.canManageBank ? `<button class="soft" id="withdrawBtn">Withdraw 100</button>` : ''}
@@ -118,11 +185,8 @@ function renderOrg() {
   const leaveBtn = document.getElementById('leaveBtn');
   if (leaveBtn) {
     leaveBtn.onclick = async () => {
-      const result = await nui('leaveOrg');
-      if (result?.success && result.data) {
-        state = result.data;
-        renderAll();
-      }
+      const result = await runAction(() => nui('leaveOrg'));
+      applyResult(result, 'Failed to leave organization');
     };
   }
 
@@ -130,42 +194,39 @@ function renderOrg() {
   if (inviteBtn) {
     inviteBtn.onclick = async () => {
       const nearby = await nui('getNearbyPlayers');
-      if (!nearby?.length) {
-        alert('No players nearby');
+      if (!Array.isArray(nearby) || !nearby.length) {
+        showToast('No players nearby', 'error');
         return;
       }
-      const targetId = nearby[0].id;
-      const result = await nui('invite', { targetId });
-      if (!result?.success) alert(result?.error || 'Invite failed');
-      else if (result.data) { state = result.data; renderAll(); }
+      const result = await runAction(() => nui('invite', { targetId: nearby[0].id }));
+      if (applyResult(result, 'Invite failed')) {
+        showToast(`Invited ${nearby[0].name || 'player'}`, 'success');
+      }
     };
   }
 
   const withdrawBtn = document.getElementById('withdrawBtn');
   if (withdrawBtn) {
     withdrawBtn.onclick = async () => {
-      const result = await nui('withdrawBank', { amount: 100 });
-      if (result?.success && result.data) { state = result.data; renderAll(); }
-      else alert(result?.error || 'Withdraw failed');
+      const result = await runAction(() => nui('withdrawBank', { amount: 100 }));
+      applyResult(result, 'Withdraw failed');
     };
   }
 
   panel.querySelectorAll('[data-kick]').forEach((btn) => {
     btn.onclick = async () => {
-      const result = await nui('kick', { identifier: btn.dataset.kick });
-      if (result?.success && result.data) { state = result.data; renderAll(); }
-      else alert(result?.error || 'Kick failed');
+      const result = await runAction(() => nui('kick', { identifier: btn.dataset.kick }));
+      applyResult(result, 'Kick failed');
     };
   });
 
   panel.querySelectorAll('select[data-role]').forEach((sel) => {
     sel.onchange = async () => {
-      const result = await nui('setRole', {
+      const result = await runAction(() => nui('setRole', {
         identifier: sel.dataset.role,
         roleId: Number(sel.value),
-      });
-      if (result?.success && result.data) { state = result.data; renderAll(); }
-      else alert(result?.error || 'Role update failed');
+      }));
+      applyResult(result, 'Role update failed');
     };
   });
 }
@@ -201,23 +262,20 @@ function renderZones() {
 
   panel.querySelectorAll('[data-war]').forEach((btn) => {
     btn.onclick = async () => {
-      const result = await nui('startWar', { zoneKey: btn.dataset.war });
-      if (result?.success && result.data) { state = result.data; renderAll(); }
-      else alert(result?.error || 'Could not start war');
+      const result = await runAction(() => nui('startWar', { zoneKey: btn.dataset.war }));
+      applyResult(result, 'Could not start war');
     };
   });
   panel.querySelectorAll('[data-prot]').forEach((btn) => {
     btn.onclick = async () => {
-      const result = await nui('upgradeProtection', { zoneKey: btn.dataset.prot });
-      if (result?.success && result.data) { state = result.data; renderAll(); }
-      else alert(result?.error || 'Upgrade failed');
+      const result = await runAction(() => nui('upgradeProtection', { zoneKey: btn.dataset.prot }));
+      applyResult(result, 'Upgrade failed');
     };
   });
   panel.querySelectorAll('[data-npc]').forEach((btn) => {
     btn.onclick = async () => {
-      const result = await nui('upgradeNPCs', { zoneKey: btn.dataset.npc });
-      if (result?.success && result.data) { state = result.data; renderAll(); }
-      else alert(result?.error || 'Upgrade failed');
+      const result = await runAction(() => nui('upgradeNPCs', { zoneKey: btn.dataset.npc }));
+      applyResult(result, 'Upgrade failed');
     };
   });
 }
@@ -238,6 +296,88 @@ function renderWars() {
       <span class="badge">Live</span>
     </div>
   `).join('');
+}
+
+function initials(label) {
+  const parts = String(label || '?').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function formatScore(n) {
+  return Number(n || 0).toLocaleString('en-US');
+}
+
+function zoneDisplayId(war) {
+  if (war.zoneId != null) return `#${war.zoneId}`;
+  let hash = 0;
+  const key = String(war.zoneKey || war.zoneTitle || '0');
+  for (let i = 0; i < key.length; i += 1) hash = ((hash << 5) - hash) + key.charCodeAt(i);
+  return `#${Math.abs(hash % 9000) + 1000}`;
+}
+
+function renderWarHud(wars = [], serverTime) {
+  if (!warHudEl) return;
+  if (typeof serverTime === 'number') {
+    clockOffset = serverTime - Math.floor(Date.now() / 1000);
+  }
+
+  if (!wars.length) {
+    warHudEl.classList.add('hidden');
+    warHudEl.innerHTML = '';
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000) + clockOffset;
+  warHudEl.classList.remove('hidden');
+  warHudEl.innerHTML = wars.map((war) => {
+    const duration = Math.max(1, Number(war.duration) || 600);
+    const remaining = Math.max(0, Number(war.endsAt || 0) - now);
+    const progress = Math.max(0, Math.min(100, ((duration - remaining) / duration) * 100));
+    const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const secs = String(remaining % 60).padStart(2, '0');
+    const atk = Number(war.attackerScore || 0);
+    const def = Number(war.defenderScore || 0);
+    const total = Math.max(1, atk + def);
+    const atkFill = (atk / total) * 100;
+    const defFill = (def / total) * 100;
+    const leadingColor = atk >= def ? (war.attackerColor || '#e11d2e') : (war.defenderColor || '#2563eb');
+
+    return `
+      <article class="war-card">
+        <div class="war-top">
+          <div class="war-ring" style="--ring-progress:${progress.toFixed(1)}%; --ring-color:${esc(leadingColor)}">
+            <span>WAR</span>
+          </div>
+          <div class="war-meta">
+            <h3>ZONE WAR</h3>
+            <strong>${esc(zoneDisplayId(war))}</strong>
+          </div>
+          <div class="war-timer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a11 11 0 1 0 11 11A11.013 11.013 0 0 0 12 1Zm1 11.59V7h-2v6.41l4.29 4.3 1.42-1.42Z"/></svg>
+            ${mins}:${secs}
+          </div>
+        </div>
+        <div class="war-team" style="--team-color:${esc(war.attackerColor || '#e11d2e')}">
+          <div class="war-logo">${esc(initials(war.attackerLabel))}</div>
+          <div class="war-team-copy">
+            <strong>${esc(war.attackerLabel || 'Attacker')}</strong>
+            <div class="war-bar"><i style="--fill:${atkFill.toFixed(1)}%"></i></div>
+          </div>
+          <div class="war-score">${esc(formatScore(atk))}</div>
+        </div>
+        <div class="war-team" style="--team-color:${esc(war.defenderColor || '#2563eb')}">
+          <div class="war-logo">${esc(initials(war.defenderLabel))}</div>
+          <div class="war-team-copy">
+            <strong>${esc(war.defenderLabel || 'Unowned')}</strong>
+            <div class="war-bar"><i style="--fill:${defFill.toFixed(1)}%"></i></div>
+          </div>
+          <div class="war-score">${esc(formatScore(def))}</div>
+        </div>
+      </article>
+    `;
+  }).join('');
 }
 
 function renderBounties() {
@@ -272,12 +412,17 @@ function renderBoard() {
 
 function renderAll() {
   if (!state) return;
-  renderOverview();
-  renderOrg();
-  renderZones();
-  renderWars();
-  renderBounties();
-  renderBoard();
+  try {
+    renderOverview();
+    renderOrg();
+    renderZones();
+    renderWars();
+    renderBounties();
+    renderBoard();
+  } catch (err) {
+    console.error('gangs render error', err);
+    showToast('UI render failed', 'error');
+  }
 }
 
 document.querySelectorAll('.nav-btn').forEach((btn) => {
@@ -293,12 +438,9 @@ document.getElementById('placeBountyBtn').addEventListener('click', async () => 
   const targetId = Number(document.getElementById('bountyTarget').value);
   const amount = Number(document.getElementById('bountyAmount').value);
   const reason = document.getElementById('bountyReason').value;
-  const result = await nui('placeBounty', { targetId, amount, reason });
-  if (result?.success && result.data) {
-    state = result.data;
-    renderAll();
-  } else {
-    alert(result?.error || 'Could not place bounty');
+  const result = await runAction(() => nui('placeBounty', { targetId, amount, reason }));
+  if (applyResult(result, 'Could not place bounty')) {
+    showToast('Bounty placed', 'success');
   }
 });
 
@@ -309,6 +451,8 @@ window.addEventListener('message', (event) => {
     state = msg.data;
     app.classList.remove('hidden');
     renderAll();
+  } else if (msg.action === 'warHud') {
+    renderWarHud(msg.wars || [], msg.serverTime);
   }
 });
 

@@ -10,6 +10,9 @@ local function createDefaultRoles(orgId)
             'INSERT INTO gangs_roles (org_id, name, grade, permissions) VALUES (?, ?, ?, ?)',
             { orgId, def.name, def.grade or 0, Gangs.Encode(def.permissions or {}) }
         )
+        if not id then
+            return {}
+        end
         roleIds[#roleIds + 1] = {
             id = id,
             name = def.name,
@@ -44,21 +47,35 @@ function Gangs.CreateOrganization(source, label, color)
 
     local price = tonumber(Config.OrganizationCreationPrice) or 0
     if price > 0 then
-        local have = Bridge.GetItemCount(source, Config.CurrencyName)
+        local have = Bridge.GetItemCount(source, Config.CurrencyName) or 0
         if have < price then
             return false, Gangs.Locale('org_need_funds', price, Config.CurrencyLabel)
         end
-        Bridge.RemoveItem(source, Config.CurrencyName, price)
+        local removed = Bridge.RemoveItem(source, Config.CurrencyName, price)
+        if removed == false then
+            return false, Gangs.Locale('org_need_funds', price, Config.CurrencyLabel)
+        end
     end
 
-    color = color or '#DE2A21'
+    color = tostring(color or '#DE2A21')
+    if not color:match('^#%x%x%x%x%x%x$') then
+        color = '#DE2A21'
+    end
+
     local orgId = MySQL.insert.await(
         'INSERT INTO gangs_organizations (name, label, color, owner) VALUES (?, ?, ?, ?)',
         { name, label, color, identifier }
     )
+    if not orgId then
+        return false, 'Database failed to create organization'
+    end
 
     local roles = createDefaultRoles(orgId)
     local leaderRole = roles[1]
+    if not leaderRole or not leaderRole.id then
+        MySQL.query.await('DELETE FROM gangs_organizations WHERE id = ?', { orgId })
+        return false, 'Database failed to create organization roles'
+    end
 
     local org = {
         id = orgId,
@@ -75,11 +92,17 @@ function Gangs.CreateOrganization(source, label, color)
         org.roles[role.id] = role
     end
 
+    local memberId = MySQL.insert.await(
+        'INSERT INTO gangs_members (org_id, identifier, citizenid, name, role_id) VALUES (?, ?, ?, ?, ?)',
+        { orgId, identifier, identifier, Bridge.GetCharName(source), leaderRole.id }
+    )
+    if not memberId then
+        MySQL.query.await('DELETE FROM gangs_organizations WHERE id = ?', { orgId })
+        return false, 'Database failed to create organization member'
+    end
+
     local member = {
-        id = MySQL.insert.await(
-            'INSERT INTO gangs_members (org_id, identifier, citizenid, name, role_id) VALUES (?, ?, ?, ?, ?)',
-            { orgId, identifier, identifier, Bridge.GetCharName(source), leaderRole.id }
-        ),
+        id = memberId,
         org_id = orgId,
         identifier = identifier,
         citizenid = identifier,
@@ -91,7 +114,7 @@ function Gangs.CreateOrganization(source, label, color)
     org.members[identifier] = member
     Gangs.Orgs[name] = org
     Gangs.Members[identifier] = member
-    Gangs.EnsureStats(source)
+    pcall(Gangs.EnsureStats, source)
 
     Bridge.Notify(source, Gangs.Locale('org_created', label), 'success')
     return true, org
@@ -288,8 +311,57 @@ end
 
 lib.callback.register('gangs:createOrganization', function(source, label, color)
     local ok, result = Gangs.CreateOrganization(source, label, color)
-    if not ok then return { success = false, error = result } end
-    return { success = true, data = Gangs.BuildPlayerPayload(source) }
+    if not ok then
+        return { success = false, error = tostring(result or 'Failed to create organization') }
+    end
+
+    local payloadOk, payload = pcall(Gangs.BuildPlayerPayload, source)
+    if not payloadOk then
+        print(('[gangs] BuildPlayerPayload failed after org create: %s'):format(tostring(payload)))
+        return {
+            success = true,
+            data = {
+                player = {
+                    source = source,
+                    identifier = Bridge.GetIdentifier(source),
+                    name = Bridge.GetCharName(source),
+                    currency = Bridge.GetItemCount(source, Config.CurrencyName) or 0,
+                    permissions = Config.DefaultRoles[1] and Config.DefaultRoles[1].permissions or {},
+                    roleName = 'Leader',
+                    title = Config.CriminalTitles[1],
+                    stats = Gangs.Stats[Bridge.GetIdentifier(source)],
+                },
+                organization = {
+                    id = result.id,
+                    name = result.name,
+                    label = result.label,
+                    color = result.color,
+                    owner = result.owner,
+                    power = result.power or 0,
+                    bank = result.bank or 0,
+                    members = {},
+                    roles = {},
+                },
+                zones = {},
+                wars = {},
+                bounties = {},
+                leaderboard = {},
+                config = {
+                    canCreate = Config.CanCreateOrganizations,
+                    createPrice = Config.OrganizationCreationPrice,
+                    currencyLabel = Config.CurrencyLabel,
+                    minimalBounty = Config.MinimalBounty,
+                    maxProtection = Config.MaxProtectionLevel,
+                    protectionPrice = Config.ProtectionValuePrice,
+                    maxNpc = Config.MaxNPCValue,
+                    npcPrice = Config.NPCValuePrice,
+                    warPrice = Config.PriceToStartWar,
+                },
+            },
+        }
+    end
+
+    return { success = true, data = payload }
 end)
 
 lib.callback.register('gangs:inviteNearby', function(source, targetId)

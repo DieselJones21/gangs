@@ -277,14 +277,24 @@ function Gangs.BuildPlayerPayload(source)
 
     local wars = {}
     for key, war in pairs(Gangs.Wars) do
+        local zone = Gangs.Zones[key]
+        local attackerOrg = war.attacker and Gangs.Orgs[war.attacker] or nil
+        local defenderOrg = war.defender and Gangs.Orgs[war.defender] or nil
         wars[#wars + 1] = {
             zoneKey = key,
-            zoneTitle = Gangs.Zones[key] and Gangs.Zones[key].title or key,
+            zoneId = zone and zone.id or nil,
+            zoneTitle = zone and zone.title or key,
             attacker = war.attacker,
             defender = war.defender,
+            attackerLabel = attackerOrg and attackerOrg.label or war.attacker,
+            defenderLabel = defenderOrg and defenderOrg.label or (war.defender or 'Unowned'),
+            attackerColor = attackerOrg and attackerOrg.color or '#EF4444',
+            defenderColor = defenderOrg and defenderOrg.color or '#3B82F6',
             attackerScore = war.attackerScore,
             defenderScore = war.defenderScore,
+            startedAt = war.startedAt,
             endsAt = war.endsAt,
+            duration = war.duration,
         }
     end
 

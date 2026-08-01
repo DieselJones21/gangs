@@ -1,19 +1,47 @@
+local function orgDisplay(name)
+    if not name or not Gangs.Orgs[name] then
+        return {
+            name = name,
+            label = name or 'Unowned',
+            color = '#3B82F6',
+        }
+    end
+    local org = Gangs.Orgs[name]
+    return {
+        name = org.name,
+        label = org.label,
+        color = org.color or '#EF4444',
+    }
+end
+
 function Gangs.GetClientWars()
     local payload = {}
     for key, war in pairs(Gangs.Wars) do
+        local zone = Gangs.Zones[key]
+        local attacker = orgDisplay(war.attacker)
+        local defender = orgDisplay(war.defender)
         payload[key] = {
             zoneKey = key,
-            zoneTitle = Gangs.Zones[key] and Gangs.Zones[key].title or key,
-            attacker = war.attacker,
-            defender = war.defender,
+            zoneId = zone and zone.id or nil,
+            zoneTitle = zone and zone.title or key,
+            attacker = attacker.name,
+            attackerLabel = attacker.label,
+            attackerColor = attacker.color,
+            defender = defender.name,
+            defenderLabel = defender.label,
+            defenderColor = defender.color,
             attackerScore = war.attackerScore,
             defenderScore = war.defenderScore,
+            startedAt = war.startedAt,
             endsAt = war.endsAt,
-            points = Gangs.Zones[key] and Gangs.Zones[key].points or {},
-            center = Gangs.Zones[key] and {
-                x = Gangs.Zones[key].center_x,
-                y = Gangs.Zones[key].center_y,
-                z = Gangs.Zones[key].center_z,
+            duration = war.duration,
+            points = zone and zone.points or {},
+            minZ = zone and zone.min_z or nil,
+            maxZ = zone and zone.max_z or nil,
+            center = zone and {
+                x = zone.center_x,
+                y = zone.center_y,
+                z = zone.center_z,
             } or nil,
         }
     end
@@ -115,13 +143,17 @@ function Gangs.StartWar(source, zoneKey, force)
         defenderAdvantage = defenderAdvantage + math.floor((zone.street_rep or 0) / 2)
     end
 
+    local duration = math.floor((Config.BaseZoneWarTime or 10) * 60)
+    local now = os.time()
     local war = {
         zoneKey = zoneKey,
         attacker = org.name,
         defender = zone.owner_org,
         attackerScore = 0,
         defenderScore = zone.owner_org and defenderAdvantage or 0,
-        endsAt = os.time() + math.floor((Config.BaseZoneWarTime or 10) * 60),
+        startedAt = now,
+        duration = duration,
+        endsAt = now + duration,
         players = {},
     }
 
