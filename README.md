@@ -7,7 +7,7 @@ Original FiveM territory / organization resource with Core Gangs–style gamepla
 - Zone wars with live scoring
 - Bounties, criminal stats, titles, leaderboards
 - Zone storages, NPC guards, continental shop
-- In-game zone editor for admins (`/zoneeditor`)
+- Freecam PolyZone editor for admins (`/zoneeditor`) — fly into the sky and click ground points
 - Criminal Tablet NUI (`F9` / `/criminal`) with black/red/blue theme
 - Zone war HUD widget + striped war walls
 
@@ -40,6 +40,16 @@ ensure gangs
 5. Configure `config.lua` (framework, inventory, war windows, zone templates, etc.).
 6. Restart the server, then create zones in-game with `/zoneeditor` (admin).
 
+### Zone editor (freecam PolyZone)
+
+Admins: `/zoneeditor`
+
+1. Freecam starts above you — fly with **WASD**, look with mouse
+2. **Space/Q** up, **Ctrl/C** down, **Shift** faster, **Scroll** speed
+3. **Left click / E** places a ground poly point under the crosshair
+4. Place **3+** points, then **Enter** to save the PolyZone
+5. **Backspace** undo, **X / Esc** cancel
+
 ## Player commands
 
 | Command | Description |
@@ -51,7 +61,7 @@ ensure gangs
 
 | Command | Description |
 | --- | --- |
-| `/zoneeditor` | Place polygon points and create a zone |
+| `/zoneeditor` | Freecam PolyZone editor (fly in sky, click points) |
 | `/criminal zone` | Print current zone key |
 | `/criminal setzone <key> <org>` | Assign zone ownership |
 | `/criminal resetzone <key>` | Clear zone ownership |
