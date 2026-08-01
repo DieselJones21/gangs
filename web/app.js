@@ -385,7 +385,11 @@ function warStructureKey(war) {
 }
 
 function ensureWarCard(war) {
-  let card = warHudEl.querySelector(`[data-zone="${CSS.escape(String(war.zoneKey))}"]`);
+  const zoneKey = String(war.zoneKey);
+  let card = null;
+  warHudEl.querySelectorAll('.war-card').forEach((el) => {
+    if (el.dataset.zone === zoneKey) card = el;
+  });
   if (card) return card;
 
   card = document.createElement('article');
@@ -479,35 +483,40 @@ function stopWarTimerLoop() {
 }
 
 function renderWarHud(wars = [], serverTime) {
-  if (!warHudEl) return;
+  try {
+    if (!warHudEl) return;
 
-  if (typeof serverTime === 'number') {
-    warHudClockOffset = serverTime - Math.floor(Date.now() / 1000);
+    if (typeof serverTime === 'number' && Number.isFinite(serverTime) && serverTime > 0) {
+      warHudClockOffset = serverTime - Math.floor(Date.now() / 1000);
+    }
+
+    if (!Array.isArray(wars) || !wars.length) {
+      warHudState = {};
+      warHudEl.classList.add('hidden');
+      warHudEl.innerHTML = '';
+      stopWarTimerLoop();
+      return;
+    }
+
+    warHudEl.classList.remove('hidden');
+    startWarTimerLoop();
+
+    const active = new Set();
+    wars.forEach((war) => {
+      if (!war || war.zoneKey == null) return;
+      const key = String(war.zoneKey);
+      active.add(key);
+      warHudState[key] = war;
+      const card = ensureWarCard(war);
+      patchWarCard(card, war);
+    });
+
+    warHudEl.querySelectorAll('.war-card').forEach((card) => {
+      if (!active.has(card.dataset.zone)) card.remove();
+    });
+  } catch (err) {
+    console.log('gangs warHud error', err);
   }
-
-  if (!wars.length) {
-    warHudState = {};
-    warHudEl.classList.add('hidden');
-    warHudEl.innerHTML = '';
-    stopWarTimerLoop();
-    return;
-  }
-
-  warHudEl.classList.remove('hidden');
-  startWarTimerLoop();
-
-  const active = new Set();
-  wars.forEach((war) => {
-    const key = String(war.zoneKey);
-    active.add(key);
-    warHudState[key] = war;
-    const card = ensureWarCard(war);
-    patchWarCard(card, war);
-  });
-
-  warHudEl.querySelectorAll('.war-card').forEach((card) => {
-    if (!active.has(card.dataset.zone)) card.remove();
-  });
 }
 
 function renderBounties() {

@@ -150,8 +150,9 @@ Config.WarWallHeight = 16.0
 Config.WarWallCellSize = 1.6 -- checkerboard square size
 Config.WarWallAlpha = 120
 Config.WarWallLogoSize = 2.8 -- meters
-Config.WarHudOnlyInsideZone = true -- show score UI while inside (sticky briefly after leaving edge)
-Config.BaseZoneWarTime = 10 -- minutes; highest score at end wins the zone
+-- false = always show war HUD while a war is active (recommended)
+-- true  = prefer showing only the war for the zone you are inside
+Config.WarHudOnlyInsideZone = false
 Config.MaxOrgLogoLength = 512
 
 Config.ZoneTypeTemplates = {
