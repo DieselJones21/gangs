@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Criminal Network</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="app" class="hidden">
+    <div class="shell">
+      <aside class="rail">
+        <div class="brand">
+          <span class="brand-mark">CN</span>
+          <div>
+            <h1>Criminal Network</h1>
+            <p id="playerMeta">—</p>
+          </div>
+        </div>
+        <nav id="nav">
+          <button class="nav-btn active" data-tab="overview">Overview</button>
+          <button class="nav-btn" data-tab="org">Organization</button>
+          <button class="nav-btn" data-tab="zones">Territories</button>
+          <button class="nav-btn" data-tab="wars">Wars</button>
+          <button class="nav-btn" data-tab="bounties">Bounties</button>
+          <button class="nav-btn" data-tab="board">Leaderboard</button>
+        </nav>
+        <button id="closeBtn" class="ghost">Close</button>
+      </aside>
+
+      <main>
+        <section id="tab-overview" class="tab active">
+          <header class="section-head">
+            <h2>Overview</h2>
+            <p>Your standing in the city underground.</p>
+          </header>
+          <div class="stat-grid" id="overviewStats"></div>
+          <div class="panel" id="overviewOrg"></div>
+        </section>
+
+        <section id="tab-org" class="tab">
+          <header class="section-head">
+            <h2>Organization</h2>
+            <p>Create a crew, manage ranks, and grow power.</p>
+          </header>
+          <div id="orgPanel"></div>
+        </section>
+
+        <section id="tab-zones" class="tab">
+          <header class="section-head">
+            <h2>Territories</h2>
+            <p>Capture zones, upgrade protection, and deploy guards.</p>
+          </header>
+          <div id="zonesPanel" class="list"></div>
+        </section>
+
+        <section id="tab-wars" class="tab">
+          <header class="section-head">
+            <h2>Active Wars</h2>
+            <p>Hold the turf. Score ticks while members stay inside the zone.</p>
+          </header>
+          <div id="warsPanel" class="list"></div>
+        </section>
+
+        <section id="tab-bounties" class="tab">
+          <header class="section-head">
+            <h2>Bounties</h2>
+            <p>Put a price on a rival. Collect when they drop.</p>
+          </header>
+          <div class="panel form-panel">
+            <label>Target Server ID</label>
+            <input id="bountyTarget" type="number" min="1" placeholder="12" />
+            <label>Amount</label>
+            <input id="bountyAmount" type="number" min="1" placeholder="200" />
+            <label>Reason</label>
+            <input id="bountyReason" type="text" placeholder="Disrespected the block" />
+            <button id="placeBountyBtn" class="primary">Place Bounty</button>
+          </div>
+          <div id="bountiesPanel" class="list"></div>
+        </section>
+
+        <section id="tab-board" class="tab">
+          <header class="section-head">
+            <h2>Leaderboard</h2>
+            <p>Top criminals by wars won and body count.</p>
+          </header>
+          <div id="boardPanel" class="list"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
