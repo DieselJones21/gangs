@@ -1,9 +1,9 @@
 Locales = Locales or {}
 
 Locales.en = {
-    menu_title = 'Criminal Tablet',
+    menu_title = 'Rebel Roleplay Criminal Tablet',
     no_permission = 'You do not have permission to do that.',
-    blacklisted_job = 'Your job cannot access the criminal tablet.',
+    blacklisted_job = 'Your job cannot access the Rebel Roleplay Criminal Tablet.',
     org_created = 'Organization %s created.',
     org_exists = 'An organization with that name already exists.',
     org_create_disabled = 'Organization creation is disabled.',

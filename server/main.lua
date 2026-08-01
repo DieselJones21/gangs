@@ -261,11 +261,14 @@ function Gangs.BuildPlayerPayload(source)
 
     local zones = {}
     for key, zone in pairs(Gangs.Zones) do
+        local ownerOrg = zone.owner_org and Gangs.Orgs[zone.owner_org] or nil
         zones[#zones + 1] = {
             key = key,
             title = zone.title,
             type = zone.type,
             owner = zone.owner_org,
+            ownerLabel = ownerOrg and ownerOrg.label or zone.owner_org or 'Unowned',
+            ownerColor = ownerOrg and ownerOrg.color or '#64748b',
             protection = zone.protection,
             npcCount = zone.npc_count,
             streetRep = zone.street_rep,
@@ -275,6 +278,7 @@ function Gangs.BuildPlayerPayload(source)
             cooldownUntil = zone.cooldown_until or 0,
         }
     end
+
 
     local wars = {}
     for key, war in pairs(Gangs.Wars) do

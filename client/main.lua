@@ -41,7 +41,7 @@ RegisterCommand(Config.OpenCommand or 'criminal', function()
     openMenu()
 end, false)
 
-RegisterKeyMapping(Config.OpenCommand or 'criminal', 'Open Criminal Tablet', 'keyboard', Config.OpenKey or 'F9')
+RegisterKeyMapping(Config.OpenCommand or 'criminal', 'Open Rebel Roleplay Criminal Tablet', 'keyboard', Config.OpenKey or 'F9')
 
 -- Death / kill reporting for bounties + stats
 CreateThread(function()

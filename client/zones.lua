@@ -225,7 +225,6 @@ CreateThread(function()
                     if inWar and Config.DisplayWarWall then
                         local wallColor = war.leadingColor or war.attackerColor or zone.color or '#EF4444'
                         local logo = war.leadingLogo or war.attackerLogo
-                        -- Prefer owner/defender logo if they are currently leading
                         if (war.defenderScore or 0) > (war.attackerScore or 0) then
                             wallColor = war.defenderColor or wallColor
                             logo = war.defenderLogo or logo
@@ -234,10 +233,25 @@ CreateThread(function()
                             logo = war.attackerLogo or logo
                         end
 
+                        -- Put the logo on the longest wall edge only (cleaner + more reliable)
+                        local bestLen, bestA, bestB = 0, nil, nil
                         for i = 1, #points do
                             local a = points[i]
                             local b = points[i + 1] or points[1]
-                            drawOrgCheckerWall(a.x, a.y, z1, z2, b.x, b.y, z1, z2, wallColor, logo)
+                            local len = math.sqrt((b.x - a.x) ^ 2 + (b.y - a.y) ^ 2)
+                            if len > bestLen then
+                                bestLen, bestA, bestB = len, a, b
+                            end
+                            drawOrgCheckerWall(a.x, a.y, z1, z2, b.x, b.y, z1, z2, wallColor, nil)
+                        end
+                        if logo and bestA and bestB then
+                            Gangs.DrawLogoOnWall(
+                                logo,
+                                bestA.x, bestA.y, z1,
+                                bestB.x, bestB.y, z2,
+                                Config.WarWallLogoSize or 2.6,
+                                wallColor
+                            )
                         end
                     else
                         local r, g, b = hexToRgb(zone.color or '#3B82F6')
