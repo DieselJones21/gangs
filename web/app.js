@@ -588,6 +588,7 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
 
 document.getElementById('closeBtn').addEventListener('click', () => {
   app.classList.add('hidden');
+  document.body.style.background = 'transparent';
   nui('close');
 });
 

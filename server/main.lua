@@ -298,6 +298,7 @@ function Gangs.BuildPlayerPayload(source)
             startedAt = war.startedAt,
             endsAt = war.endsAt,
             duration = war.duration,
+            remaining = math.max(0, (war.endsAt or os.time()) - os.time()),
         }
     end
 

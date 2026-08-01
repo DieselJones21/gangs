@@ -150,9 +150,8 @@ Config.WarWallHeight = 14.0
 Config.WarWallCellSize = 1.25 -- diagonal stripe cell size
 Config.WarWallAlpha = 95
 Config.WarWallLogoSize = 2.6 -- meters
--- false = always show war HUD while a war is active (recommended)
--- true  = prefer showing only the war for the zone you are inside
-Config.WarHudOnlyInsideZone = false
+-- Score UI only while standing inside the contested zone
+Config.WarHudOnlyInsideZone = true
 Config.MaxOrgLogoLength = 512
 
 Config.ZoneTypeTemplates = {
