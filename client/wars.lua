@@ -4,6 +4,10 @@ local function pushWarHud()
     local inside = Gangs.InsideZone
 
     for key, war in pairs(Gangs.Wars or {}) do
+        if war.attackerLogo then Gangs.EnsureLogoTexture(war.attackerLogo) end
+        if war.defenderLogo then Gangs.EnsureLogoTexture(war.defenderLogo) end
+        if war.leadingLogo then Gangs.EnsureLogoTexture(war.leadingLogo) end
+
         if (not onlyInside) or (inside and inside == key) then
             local atk = war.attackerScore or 0
             local def = war.defenderScore or 0
