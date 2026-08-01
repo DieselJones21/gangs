@@ -129,37 +129,51 @@ function Bridge.Notify(source, message, nType)
 end
 
 function Bridge.GetItemCount(source, item)
-    local fw = Bridge.GetFramework()
-    local inv = Bridge.GetInventory()
-    if inv == 'ox_inventory' then
-        return exports.ox_inventory:GetItemCount(source, item) or 0
-    end
+    local ok, count = pcall(function()
+        local fw = Bridge.GetFramework()
+        local inv = Bridge.GetInventory()
+        if inv == 'ox_inventory' then
+            return exports.ox_inventory:GetItemCount(source, item) or 0
+        end
 
-    local player = Bridge.GetPlayer(source)
-    if not player then return 0 end
-    if fw == 'esx' then
-        local data = player.getInventoryItem(item)
-        return data and data.count or 0
+        local player = Bridge.GetPlayer(source)
+        if not player then return 0 end
+        if fw == 'esx' then
+            local data = player.getInventoryItem(item)
+            return data and data.count or 0
+        end
+        local it = player.Functions.GetItemByName(item)
+        return it and (it.amount or it.count or 0) or 0
+    end)
+    if not ok then
+        print(('[gangs] GetItemCount failed for %s: %s'):format(tostring(item), tostring(count)))
+        return 0
     end
-    local it = player.Functions.GetItemByName(item)
-    return it and (it.amount or it.count or 0) or 0
+    return tonumber(count) or 0
 end
 
 function Bridge.RemoveItem(source, item, amount)
     amount = amount or 1
-    local inv = Bridge.GetInventory()
-    if inv == 'ox_inventory' then
-        return exports.ox_inventory:RemoveItem(source, item, amount)
-    end
+    local ok, removed = pcall(function()
+        local inv = Bridge.GetInventory()
+        if inv == 'ox_inventory' then
+            return exports.ox_inventory:RemoveItem(source, item, amount)
+        end
 
-    local player = Bridge.GetPlayer(source)
-    if not player then return false end
-    local fw = Bridge.GetFramework()
-    if fw == 'esx' then
-        player.removeInventoryItem(item, amount)
-        return true
+        local player = Bridge.GetPlayer(source)
+        if not player then return false end
+        local fw = Bridge.GetFramework()
+        if fw == 'esx' then
+            player.removeInventoryItem(item, amount)
+            return true
+        end
+        return player.Functions.RemoveItem(item, amount)
+    end)
+    if not ok then
+        print(('[gangs] RemoveItem failed for %s: %s'):format(tostring(item), tostring(removed)))
+        return false
     end
-    return player.Functions.RemoveItem(item, amount)
+    return removed and true or false
 end
 
 function Bridge.AddItem(source, item, amount, metadata)
