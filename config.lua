@@ -12,7 +12,7 @@ Config.ItemImagePath = 'nui://ox_inventory/web/images/'
 -- Target auto-detected (ox_target / qb-target)
 Config.PreferOxTarget = true
 
-Config.OpenKey = 'F9'
+Config.OpenKey = 'F11'
 Config.OpenCommand = 'criminal'
 Config.Locale = 'en'
 

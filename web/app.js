@@ -755,17 +755,37 @@ function renderBounties() {
 
 function renderBoard() {
   const panel = document.getElementById('boardPanel');
+  const orgPanel = document.getElementById('orgBoardPanel');
   const rows = state.leaderboard || [];
-  panel.innerHTML = rows.length
-    ? rows.map((r, i) => `
-      <div class="row">
-        <div>
-          <h3>#${i + 1} ${esc(r.name)}</h3>
-          <p>${esc(r.title)} · Wars ${esc(r.warsWon)} · Kills ${esc(r.kills)} · Bounties ${esc(r.bounties)}</p>
+  const orgRows = state.orgLeaderboard || [];
+
+  if (panel) {
+    panel.innerHTML = rows.length
+      ? rows.map((r, i) => `
+        <div class="row board-row">
+          <span class="board-rank">#${i + 1}</span>
+          <div>
+            <h3>${esc(r.name)}</h3>
+            <p>${esc(r.title)} · Wars ${esc(r.warsWon)} · Kills ${esc(r.kills)} · Bounties ${esc(r.bounties)}</p>
+          </div>
         </div>
-      </div>
-    `).join('')
-    : `<div class="empty">No criminal stats yet.</div>`;
+      `).join('')
+      : `<div class="empty">No criminal stats yet.</div>`;
+  }
+
+  if (orgPanel) {
+    orgPanel.innerHTML = orgRows.length
+      ? orgRows.map((r, i) => `
+        <div class="row board-row">
+          <span class="board-rank">#${i + 1}</span>
+          <div>
+            <h3><span class="zone-owner-dot" style="background:${esc(r.color || '#64748b')}"></span>${esc(r.label || r.name)}</h3>
+            <p>Power ${esc(r.power)} · Zones ${esc(r.zones)} · Members ${esc(r.members)} · Bank ${esc(r.bank)}</p>
+          </div>
+        </div>
+      `).join('')
+      : `<div class="empty">No organizations yet.</div>`;
+  }
 }
 
 function syncServerClock() {

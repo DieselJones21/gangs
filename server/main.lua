@@ -321,6 +321,7 @@ function Gangs.BuildPlayerPayload(source)
     end
 
     local leaderboard = Gangs.GetLeaderboard(10)
+    local orgLeaderboard = Gangs.GetOrgLeaderboard(10)
     local isAdmin = Bridge.IsAdmin(source)
     local now = os.time()
 
@@ -368,6 +369,7 @@ function Gangs.BuildPlayerPayload(source)
         wars = wars,
         bounties = bounties,
         leaderboard = leaderboard,
+        orgLeaderboard = orgLeaderboard,
         admin = adminPayload,
         config = {
             canCreate = Config.CanCreateOrganizations,
