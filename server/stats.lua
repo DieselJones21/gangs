@@ -132,22 +132,36 @@ end
 function Gangs.GetOrgLeaderboard(limit)
     limit = tonumber(limit) or 10
     local rows = {}
-    for _, org in pairs(Gangs.Orgs) do
+    for name, org in pairs(Gangs.Orgs) do
+        local members = 0
+        for _ in pairs(org.members or {}) do members += 1 end
+        local zones = 0
+        for _, zone in pairs(Gangs.Zones or {}) do
+            if zone.owner_org == name then zones += 1 end
+        end
         rows[#rows + 1] = {
-            name = org.label,
+            name = org.name,
+            label = org.label,
             power = org.power or 0,
-            members = (function()
-                local n = 0
-                for _ in pairs(org.members) do n += 1 end
-                return n
-            end)(),
-            color = org.color,
+            bank = org.bank or 0,
+            members = members,
+            zones = zones,
+            color = org.color or '#64748b',
         }
     end
-    table.sort(rows, function(a, b) return a.power > b.power end)
+    table.sort(rows, function(a, b)
+        if (a.power or 0) == (b.power or 0) then
+            if (a.zones or 0) == (b.zones or 0) then
+                return (a.bank or 0) > (b.bank or 0)
+            end
+            return (a.zones or 0) > (b.zones or 0)
+        end
+        return (a.power or 0) > (b.power or 0)
+    end)
     local out = {}
     for i = 1, math.min(limit, #rows) do
         out[#out + 1] = rows[i]
     end
     return out
 end
+

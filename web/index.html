@@ -140,10 +140,21 @@
 
         <section id="tab-board" class="tab">
           <header class="section-head">
-            <h2>Leaderboard</h2>
-            <p>Top criminals by wars won and body count.</p>
+            <h2>Leaderboards</h2>
+            <p>Top criminals and organizations running the city.</p>
           </header>
-          <div id="boardPanel" class="list"></div>
+          <div class="board-grid">
+            <section class="board-col">
+              <h3>Top Criminals</h3>
+              <p class="muted">Ranked by wars won, then kills.</p>
+              <div id="boardPanel" class="list"></div>
+            </section>
+            <section class="board-col">
+              <h3>Top Organizations</h3>
+              <p class="muted">Ranked by power, zones held, then bank.</p>
+              <div id="orgBoardPanel" class="list"></div>
+            </section>
+          </div>
         </section>
 
         <section id="tab-admin" class="tab">

@@ -8,7 +8,7 @@ Original FiveM territory / organization resource with Core Gangs–style gamepla
 - Bounties, criminal stats, titles, leaderboards
 - Zone storages, NPC guards, continental shop
 - Freecam PolyZone editor for admins (`/zoneeditor`) — fly into the sky and click ground points
-- Rebel Roleplay Criminal Tablet NUI (`F9` / `/criminal`) with black/red/blue theme, city zone map, and admin tools
+- Rebel Roleplay Criminal Tablet NUI (`F11` / `/criminal`) with black/red/blue theme, city zone map, dual leaderboards, and admin tools
 - Org logos (image URL) shown on war walls
 - In-zone war HUD with gang names + colored score bars (no timer)
 - Checkerboard war walls tinted to the leading org color
@@ -56,7 +56,7 @@ Admins: `/zoneeditor`
 
 | Command | Description |
 | --- | --- |
-| `/criminal` or `F9` | Open Rebel Roleplay Criminal Tablet |
+| `/criminal` or `F11` | Open Rebel Roleplay Criminal Tablet |
 | `/gangaccept` | Accept organization invite |
 
 ## Admin commands
